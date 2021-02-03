@@ -18,6 +18,17 @@ use crate::cli::App;
 use anyhow::Error;
 use std::fmt;
 
+/// Endpoints:
+///
+/// `/api/traces`
+/// Params:
+///     limit: specify how many to return
+///     service: Where did the trace originate
+///     prettyPrint: Make JSON nice
+/// `/search` <-- have not gotten this to work
+/// `/api/traces/{TraceId}`
+///     return spans for this TraceId
+///
 pub const TRACES: &str = "/api/traces";
 
 pub enum Endpoint {
@@ -110,7 +121,7 @@ impl<'a> ParamBuilder<'a> {
     pub fn build(self, req: ureq::Request) -> ureq::Request {
         let mut req = req
             .query("service", &self.service)
-            .query("pretty_print", &self.pretty_print.to_string());
+            .query("prettyPrint", &self.pretty_print.to_string());
 
         if let Some(start) = self.start {
             req = req.query("start", &start.to_string());

@@ -81,11 +81,8 @@ pub fn app() -> Result<(), Error> {
 }
 
 /// Return All Traces.
-/// Optionally set a limit as to how many to return at once.
 fn traces(app: &App) -> Result<(), Error> {
-    println!("Service {}, Url: {}", app.service, app.url);
     let api = JaegerApi::new(&app.url, &app.service);
-    println!("Hello");
     println!("{}", api.traces(app)?);
     Ok(())
 }
