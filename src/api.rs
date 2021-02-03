@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::App;
+use crate::cli::{App, Trace};
 use anyhow::Error;
 use std::fmt;
 
@@ -48,27 +48,41 @@ pub struct JaegerApi<'a> {
     /// Should be full URL including Port and protocol.
     /// # Example
     /// http://localhost:16686
-    ///
     url: &'a str,
-    service: &'a str,
 }
 
 impl<'a> JaegerApi<'a> {
-    pub fn new(url: &'a str, service: &'a str) -> Self {
-        Self { url, service }
+    pub fn new(url: &'a str) -> Self {
+        Self { url }
     }
 
     pub fn traces(&self, app: &App) -> Result<String, Error> {
         let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
-        let req = ParamBuilder::new(self.service)
-            .limit(app.limit)
-            .pretty_print(app.pretty_print)
-            .start(app.start)
-            .end(app.end)
-            .build(req);
+        let req = build_parameters(req, app);
         let response = req.call()?.into_string()?;
         Ok(response)
     }
+
+    pub fn trace(self, app: &App, trace: &Trace) -> Result<String, Error> {
+        // /api/traces/{trace_id}
+        let req = ureq::get(&format!(
+            "{}/{}",
+            &endpoint(self.url, Endpoint::Traces),
+            trace.id.to_string()
+        ));
+        let req = build_parameters(req, app);
+        let response = req.call()?.into_string()?;
+        Ok(response)
+    }
+}
+
+fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
+    ParamBuilder::new(&app.service)
+        .limit(app.limit)
+        .pretty_print(app.pretty_print)
+        .start(app.start)
+        .end(app.end)
+        .build(req)
 }
 
 fn endpoint(url: &str, endpoint: Endpoint) -> String {
@@ -79,6 +93,11 @@ fn endpoint(url: &str, endpoint: Endpoint) -> String {
     }
 }
 
+// TODO: Params to Implement
+// Lookback
+// minDuration
+// maxDuration
+// operation
 pub struct ParamBuilder<'a> {
     start: Option<usize>,
     end: Option<usize>,

@@ -55,10 +55,10 @@ enum TraceAction {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "trace")]
 /// Use when observing only one trace
-struct Trace {
+pub struct Trace {
     #[argh(option)]
     #[argh(description = "id desc")]
-    id: String,
+    pub id: String,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -74,20 +74,22 @@ pub fn app() -> Result<(), Error> {
     let app: App = argh::from_env();
 
     match &app.action {
-        TraceAction::AllTraces(AllTraces { filter, .. }) => traces(&app)?,
-        TraceAction::Trace(Trace { id, .. }) => unimplemented!(),
+        TraceAction::AllTraces(_) => traces(&app)?,
+        TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
     }
     Ok(())
 }
 
 /// Return All Traces.
 fn traces(app: &App) -> Result<(), Error> {
-    let api = JaegerApi::new(&app.url, &app.service);
+    let api = JaegerApi::new(&app.url);
     println!("{}", api.traces(app)?);
     Ok(())
 }
 
-/// Get a trace by it's hex string
-fn trace() {
-    todo!();
+/// Get a span by its Hex String ID
+fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
+    let api = JaegerApi::new(&app.url);
+    println!("{}", api.trace(app, trace)?);
+    Ok(())
 }
