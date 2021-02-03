@@ -1,13 +1,14 @@
 [package]
 name = "dot-jaeger"
 version = "0.1.0"
-authors = ["Andrew Plaza <andrew.plaza@parity.io>"]
+authors = ["Andrew Plaza <andrew.plaza@parity.io>", "Parity Tools Team"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0.38"
+argh = "0.1.4"
 regex = "1.4.3"
 seahorse = "1.1.1"
 ureq = "2.0.1"
