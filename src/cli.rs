@@ -23,17 +23,11 @@ use crate::api::JaegerApi;
 /// Jaeger Trace CLI App
 pub struct App {
     #[argh(option, default = "String::from(\"jaeger-query\")")]
-    /// service description
+    /// name of the Jaeger Service to query traces from.
     pub service: String,
     #[argh(option, default = "String::from(\"http://localhost:16686\")")]
-    /// url description
+    /// URL where Jaeger Service runs.
     pub url: String,
-    #[argh(option)]
-    /// which trace to start at
-    pub start: Option<usize>,
-    #[argh(option)]
-    /// which trace to end at
-    pub end: Option<usize>,
     #[argh(option)]
     /// maximum number of traces to return
     pub limit: Option<usize>,
@@ -41,7 +35,7 @@ pub struct App {
     /// pretty print result
     pub pretty_print: bool,
     #[argh(subcommand)]
-    /// action description
+    /// what action to perform on Jaeger Service
     action: TraceAction,
 }
 
@@ -57,7 +51,7 @@ enum TraceAction {
 /// Use when observing only one trace
 pub struct Trace {
     #[argh(option)]
-    #[argh(description = "id desc")]
+    /// the hex string ID of the trace to get. Example: --id 3c58a09870e2dced
     pub id: String,
 }
 

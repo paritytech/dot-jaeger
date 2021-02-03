@@ -80,8 +80,6 @@ fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
     ParamBuilder::new(&app.service)
         .limit(app.limit)
         .pretty_print(app.pretty_print)
-        .start(app.start)
-        .end(app.end)
         .build(req)
 }
 
@@ -94,13 +92,13 @@ fn endpoint(url: &str, endpoint: Endpoint) -> String {
 }
 
 // TODO: Params to Implement
-// Lookback
+// Lookback : How far back in time to look
 // minDuration
 // maxDuration
 // operation
+// start <- Unix timestamp in microseconds (presumably for internal Jaeger Use)
+// end <- Unix timestamp in microseconds (presumably for internal Jaeger Use)
 pub struct ParamBuilder<'a> {
-    start: Option<usize>,
-    end: Option<usize>,
     limit: Option<usize>,
     pretty_print: bool,
     service: &'a str,
@@ -109,22 +107,10 @@ pub struct ParamBuilder<'a> {
 impl<'a> ParamBuilder<'a> {
     pub fn new(service: &'a str) -> Self {
         Self {
-            start: None,
-            end: None,
             pretty_print: false,
             limit: None,
             service,
         }
-    }
-
-    pub fn start(mut self, start: Option<usize>) -> Self {
-        self.start = start;
-        self
-    }
-
-    pub fn end(mut self, end: Option<usize>) -> Self {
-        self.end = end;
-        self
     }
 
     pub fn limit(mut self, limit: Option<usize>) -> Self {
@@ -142,12 +128,6 @@ impl<'a> ParamBuilder<'a> {
             .query("service", &self.service)
             .query("prettyPrint", &self.pretty_print.to_string());
 
-        if let Some(start) = self.start {
-            req = req.query("start", &start.to_string());
-        }
-        if let Some(end) = self.end {
-            req = req.query("end", &end.to_string());
-        }
         if let Some(limit) = self.limit {
             req = req.query("limit", &limit.to_string());
         }
