@@ -59,36 +59,36 @@ pub struct Trace {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "traces")]
 /// Use when observing many traces
-struct AllTraces {
-    #[argh(option, default = "String::from(\"\")")] // default is no filter
+pub struct AllTraces {
+    #[argh(option)] // default is no filter
     /// filter these Traces with Regex
-    filter: String,
+    filter: Option<String>,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "services")]
 /// List of services reporting to the Jaeger Agent
-struct Services {
-    #[argh(option, default = "String::from(\"\")")] // default is no filter
+pub struct Services {
+    #[argh(option)] // default is no filter
     /// regex to apply and filter results
-    filter: String,
+    filter: Option<String>,
 }
 
 pub fn app() -> Result<(), Error> {
     let app: App = argh::from_env();
 
     match &app.action {
-        TraceAction::AllTraces(_) => traces(&app)?,
+        TraceAction::AllTraces(all_traces) => traces(&app, &all_traces)?,
         TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
-        TraceAction::Services(_) => services(&app)?,
+        TraceAction::Services(serv) => services(&app, &serv)?,
     }
     Ok(())
 }
 
 /// Return All Traces.
-fn traces(app: &App) -> Result<(), Error> {
+fn traces(app: &App, all_traces: &AllTraces) -> Result<(), Error> {
     let api = JaegerApi::new(&app.url);
-    let data = api.traces(app)?;
+    let data = api.traces(app, all_traces)?;
     if app.pretty_print {
         println!("{}", serde_json::to_string_pretty(&data)?);
     } else {
@@ -110,9 +110,11 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
     Ok(())
 }
 
-fn services(app: &App) -> Result<(), Error> {
+fn services(app: &App, services: &Services) -> Result<(), Error> {
     let api = JaegerApi::new(&app.url);
-    let data = api.services(app)?;
-    println!("{}", data);
+    let data = api.services(app, services)?;
+    for item in data.iter() {
+        println!("{}", item);
+    }
     Ok(())
 }

@@ -15,7 +15,7 @@
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-    cli::{App, Trace},
+    cli::{AllTraces, App, Services, Trace},
     primitives::{RpcResponse, TraceObject},
 };
 use anyhow::Error;
@@ -66,7 +66,7 @@ impl<'a> JaegerApi<'a> {
     }
 
     /// Get many traces belonging to one service from this Jaeger Agent.
-    pub fn traces(&self, app: &App) -> Result<Vec<TraceObject>, Error> {
+    pub fn traces(&self, app: &App, all_traces: &AllTraces) -> Result<Vec<TraceObject>, Error> {
         let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
         let req = build_parameters(req, app);
         let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
@@ -88,12 +88,17 @@ impl<'a> JaegerApi<'a> {
     }
 
     /// Query the services that reporting to this Jaeger Agent
-    pub fn services(&self, app: &App) -> Result<String, Error> {
+    pub fn services(&self, app: &App, services: &Services) -> Result<Vec<String>, Error> {
         let req = ureq::get(&endpoint(&self.url, Endpoint::Services));
         let req = build_parameters(req, app);
-        let response = req.call()?.into_string()?;
-        Ok(response)
+        let response: RpcResponse<String> = req.call()?.into_json()?;
+        Ok(response.consume())
     }
+}
+
+/// Applies a regex filter to the arguments
+fn apply_filter(input: String) -> String {
+    todo!();
 }
 
 fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
