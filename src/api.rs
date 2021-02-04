@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{App, Trace};
+use crate::{
+    cli::{App, Trace},
+    primitives::{RpcResponse, TraceObject},
+};
 use anyhow::Error;
 use std::fmt;
 
@@ -71,7 +74,7 @@ impl<'a> JaegerApi<'a> {
     }
 
     /// Get a single trace from the Jaeger Agent
-    pub fn trace(&self, app: &App, trace: &Trace) -> Result<String, Error> {
+    pub fn trace(&self, app: &App, trace: &Trace) -> Result<TraceObject, Error> {
         // /api/traces/{trace_id}
         let req = ureq::get(&format!(
             "{}/{}",
@@ -79,8 +82,9 @@ impl<'a> JaegerApi<'a> {
             trace.id.to_string()
         ));
         let req = build_parameters(req, app);
-        let response = req.call()?.into_string()?;
-        Ok(response)
+        let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
+        // if the response is succesful we should have exactly 1 item
+        Ok(response.consume().remove(0))
     }
 
     /// Query the services that reporting to this Jaeger Agent

@@ -84,6 +84,12 @@ fn traces(app: &App) -> Result<(), Error> {
 /// Get a span by its Hex String ID
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
     let api = JaegerApi::new(&app.url);
-    println!("{}", api.trace(app, trace)?);
+    let data = api.trace(app, trace)?;
+    if app.pretty_print {
+        println!("{}", serde_json::to_string_pretty(&data)?);
+    } else {
+        println!("{}", serde_json::to_string(&data)?);
+    }
+
     Ok(())
 }

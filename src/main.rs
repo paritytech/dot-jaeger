@@ -18,6 +18,7 @@ use anyhow::Error;
 
 mod api;
 mod cli;
+mod primitives;
 
 fn main() -> Result<(), Error> {
     cli::app()?;
