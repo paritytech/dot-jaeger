@@ -28,17 +28,23 @@ use std::fmt;
 /// `/search` <-- have not gotten this to work
 /// `/api/traces/{TraceId}`
 ///     return spans for this TraceId
-///
+/// `/api/services`
+/// 	- returns services reporting to the jaeger agent
 pub const TRACES: &str = "/api/traces";
+
+/// Returns list of services on this Jaeger agent
+pub const SERVICES: &str = "/api/services";
 
 pub enum Endpoint {
     Traces,
+    Services,
 }
 
 impl fmt::Display for Endpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Endpoint::Traces => write!(f, "{}", TRACES),
+            Endpoint::Services => write!(f, "{}", SERVICES),
         }
     }
 }
@@ -56,6 +62,7 @@ impl<'a> JaegerApi<'a> {
         Self { url }
     }
 
+    /// Get many traces belonging to one service from this Jaeger Agent.
     pub fn traces(&self, app: &App) -> Result<String, Error> {
         let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
         let req = build_parameters(req, app);
@@ -63,13 +70,22 @@ impl<'a> JaegerApi<'a> {
         Ok(response)
     }
 
-    pub fn trace(self, app: &App, trace: &Trace) -> Result<String, Error> {
+    /// Get a single trace from the Jaeger Agent
+    pub fn trace(&self, app: &App, trace: &Trace) -> Result<String, Error> {
         // /api/traces/{trace_id}
         let req = ureq::get(&format!(
             "{}/{}",
             &endpoint(self.url, Endpoint::Traces),
             trace.id.to_string()
         ));
+        let req = build_parameters(req, app);
+        let response = req.call()?.into_string()?;
+        Ok(response)
+    }
+
+    /// Query the services that reporting to this Jaeger Agent
+    pub fn services(&self, app: &App) -> Result<String, Error> {
+        let req = ureq::get(&endpoint(&self.url, Endpoint::Services));
         let req = build_parameters(req, app);
         let response = req.call()?.into_string()?;
         Ok(response)
@@ -84,11 +100,7 @@ fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
 }
 
 fn endpoint(url: &str, endpoint: Endpoint) -> String {
-    match endpoint {
-        Endpoint::Traces => {
-            format!("{}/{}", url, endpoint)
-        }
-    }
+    format!("{}/{}", url, endpoint)
 }
 
 // TODO: Params to Implement
