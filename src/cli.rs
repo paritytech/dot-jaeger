@@ -22,20 +22,20 @@ use crate::api::JaegerApi;
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
 pub struct App {
-    #[argh(option, default = "String::from(\"jaeger-query\")")]
-    /// name of the Jaeger Service to query traces from.
-    pub service: String,
+    #[argh(option)]
+    /// name a specific node that reports to the Jaeger Agent from which te query traces.
+    pub service: Option<String>,
     #[argh(option, default = "String::from(\"http://localhost:16686\")")]
     /// URL where Jaeger Service runs.
     pub url: String,
     #[argh(option)]
-    /// maximum number of traces to return
+    /// maximum number of traces to return.
     pub limit: Option<usize>,
     #[argh(switch)]
     /// pretty print result
     pub pretty_print: bool,
     #[argh(subcommand)]
-    /// what action to perform on Jaeger Service
+    /// what action to perform on Jaeger Service.
     action: TraceAction,
 }
 
@@ -44,6 +44,7 @@ pub struct App {
 enum TraceAction {
     AllTraces(AllTraces),
     Trace(Trace),
+    Services(Services),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -57,10 +58,19 @@ pub struct Trace {
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "traces")]
-/// Use when observing bulk traces
+/// Use when observing many traces
 struct AllTraces {
-    #[argh(option)]
+    #[argh(option, default = "String::from(\"\")")] // default is no filter
     /// filter these Traces with Regex
+    filter: String,
+}
+
+#[derive(FromArgs, PartialEq, Debug)]
+#[argh(subcommand, name = "services")]
+/// List of services reporting to the Jaeger Agent
+struct Services {
+    #[argh(option, default = "String::from(\"\")")] // default is no filter
+    /// regex to apply and filter results
     filter: String,
 }
 
@@ -70,6 +80,7 @@ pub fn app() -> Result<(), Error> {
     match &app.action {
         TraceAction::AllTraces(_) => traces(&app)?,
         TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
+        TraceAction::Services(_) => services(&app)?,
     }
     Ok(())
 }
@@ -77,7 +88,12 @@ pub fn app() -> Result<(), Error> {
 /// Return All Traces.
 fn traces(app: &App) -> Result<(), Error> {
     let api = JaegerApi::new(&app.url);
-    println!("{}", api.traces(app)?);
+    let data = api.traces(app)?;
+    if app.pretty_print {
+        println!("{}", serde_json::to_string_pretty(&data)?);
+    } else {
+        println!("{}", serde_json::to_string(&data)?);
+    }
     Ok(())
 }
 
@@ -91,5 +107,12 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
         println!("{}", serde_json::to_string(&data)?);
     }
 
+    Ok(())
+}
+
+fn services(app: &App) -> Result<(), Error> {
+    let api = JaegerApi::new(&app.url);
+    let data = api.services(app)?;
+    println!("{}", data);
     Ok(())
 }

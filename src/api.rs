@@ -66,11 +66,11 @@ impl<'a> JaegerApi<'a> {
     }
 
     /// Get many traces belonging to one service from this Jaeger Agent.
-    pub fn traces(&self, app: &App) -> Result<String, Error> {
+    pub fn traces(&self, app: &App) -> Result<Vec<TraceObject>, Error> {
         let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
         let req = build_parameters(req, app);
-        let response = req.call()?.into_string()?;
-        Ok(response)
+        let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
+        Ok(response.consume())
     }
 
     /// Get a single trace from the Jaeger Agent
@@ -97,7 +97,8 @@ impl<'a> JaegerApi<'a> {
 }
 
 fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
-    ParamBuilder::new(&app.service)
+    ParamBuilder::new()
+        .service(app.service.as_deref())
         .limit(app.limit)
         .pretty_print(app.pretty_print)
         .build(req)
@@ -117,15 +118,15 @@ fn endpoint(url: &str, endpoint: Endpoint) -> String {
 pub struct ParamBuilder<'a> {
     limit: Option<usize>,
     pretty_print: bool,
-    service: &'a str,
+    service: Option<&'a str>,
 }
 
 impl<'a> ParamBuilder<'a> {
-    pub fn new(service: &'a str) -> Self {
+    pub fn new() -> Self {
         Self {
             pretty_print: false,
             limit: None,
-            service,
+            service: None,
         }
     }
 
@@ -139,10 +140,17 @@ impl<'a> ParamBuilder<'a> {
         self
     }
 
+    pub fn service(mut self, service: Option<&'a str>) -> Self {
+        self.service = service;
+        self
+    }
+
     pub fn build(self, req: ureq::Request) -> ureq::Request {
-        let mut req = req
-            .query("service", &self.service)
-            .query("prettyPrint", &self.pretty_print.to_string());
+        let mut req = req.query("prettyPrint", &self.pretty_print.to_string());
+
+        if let Some(service) = self.service {
+            req = req.query("service", &service.to_string());
+        }
 
         if let Some(limit) = self.limit {
             req = req.query("limit", &limit.to_string());
