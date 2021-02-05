@@ -23,7 +23,7 @@ use crate::api::JaegerApi;
 /// Jaeger Trace CLI App
 pub struct App {
     #[argh(option)]
-    /// name a specific node that reports to the Jaeger Agent from which te query traces.
+    /// name a specific node that reports to the Jaeger Agent from which to query traces.
     pub service: Option<String>,
     #[argh(option, default = "String::from(\"http://localhost:16686\")")]
     /// URL where Jaeger Service runs.
@@ -34,6 +34,9 @@ pub struct App {
     #[argh(switch)]
     /// pretty print result
     pub pretty_print: bool,
+    #[argh(option)]
+    /// specify how far back in time to look for traces. In format: `1h`, `1d`
+    pub lookback: Option<String>,
     #[argh(subcommand)]
     /// what action to perform on Jaeger Service.
     action: TraceAction,
