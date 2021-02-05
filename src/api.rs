@@ -107,7 +107,6 @@ fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
     ParamBuilder::new()
         .service(app.service.as_deref())
         .limit(app.limit)
-        .pretty_print(app.pretty_print)
         .lookback(app.lookback.as_deref())
         .build(req)
 }
@@ -124,7 +123,6 @@ fn endpoint(url: &str, endpoint: Endpoint) -> String {
 // end <- Unix timestamp in microseconds (presumably for internal Jaeger Use)
 pub struct ParamBuilder<'a> {
     limit: Option<usize>,
-    pretty_print: bool,
     service: Option<&'a str>,
     lookback: Option<&'a str>,
 }
@@ -132,7 +130,6 @@ pub struct ParamBuilder<'a> {
 impl<'a> ParamBuilder<'a> {
     pub fn new() -> Self {
         Self {
-            pretty_print: false,
             limit: None,
             service: None,
             lookback: None,
@@ -142,12 +139,6 @@ impl<'a> ParamBuilder<'a> {
     /// Amount of JSON objects to return in one GET.
     pub fn limit(mut self, limit: Option<usize>) -> Self {
         self.limit = limit;
-        self
-    }
-
-    /// Pretty print the JSON results.
-    pub fn pretty_print(mut self, pretty_print: bool) -> Self {
-        self.pretty_print = pretty_print;
         self
     }
 
@@ -163,9 +154,7 @@ impl<'a> ParamBuilder<'a> {
         self
     }
 
-    pub fn build(self, req: ureq::Request) -> ureq::Request {
-        let mut req = req.query("prettyPrint", &self.pretty_print.to_string());
-
+    pub fn build(self, mut req: ureq::Request) -> ureq::Request {
         if let Some(service) = self.service {
             req = req.query("service", &service.to_string());
         }
