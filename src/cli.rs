@@ -22,103 +22,103 @@ use crate::api::JaegerApi;
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
 pub struct App {
-    #[argh(option)]
-    /// name a specific node that reports to the Jaeger Agent from which to query traces.
-    pub service: Option<String>,
-    #[argh(option, default = "String::from(\"http://localhost:16686\")")]
-    /// URL where Jaeger Service runs.
-    pub url: String,
-    #[argh(option)]
-    /// maximum number of traces to return.
-    pub limit: Option<usize>,
-    #[argh(switch)]
-    /// pretty print result
-    pub pretty_print: bool,
-    #[argh(option)]
-    /// specify how far back in time to look for traces. In format: `1h`, `1d`
-    pub lookback: Option<String>,
-    #[argh(subcommand)]
-    /// what action to perform on Jaeger Service.
-    action: TraceAction,
+	#[argh(option)]
+	/// name a specific node that reports to the Jaeger Agent from which to query traces.
+	pub service: Option<String>,
+	#[argh(option, default = "String::from(\"http://localhost:16686\")")]
+	/// URL where Jaeger Service runs.
+	pub url: String,
+	#[argh(option)]
+	/// maximum number of traces to return.
+	pub limit: Option<usize>,
+	#[argh(switch)]
+	/// pretty print result
+	pub pretty_print: bool,
+	#[argh(option)]
+	/// specify how far back in time to look for traces. In format: `1h`, `1d`
+	pub lookback: Option<String>,
+	#[argh(subcommand)]
+	/// what action to perform on Jaeger Service.
+	action: TraceAction,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 enum TraceAction {
-    AllTraces(AllTraces),
-    Trace(Trace),
-    Services(Services),
+	AllTraces(AllTraces),
+	Trace(Trace),
+	Services(Services),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "trace")]
 /// Use when observing only one trace
 pub struct Trace {
-    #[argh(option)]
-    /// the hex string ID of the trace to get. Example: --id 3c58a09870e2dced
-    pub id: String,
+	#[argh(option)]
+	/// the hex string ID of the trace to get. Example: --id 3c58a09870e2dced
+	pub id: String,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "traces")]
 /// Use when observing many traces
 pub struct AllTraces {
-    #[argh(option)] // default is no filter
-    /// filter these Traces with Regex
-    filter: Option<String>,
+	#[argh(option)] // default is no filter
+	/// filter these Traces with Regex
+	filter: Option<String>,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "services")]
 /// List of services reporting to the Jaeger Agent
 pub struct Services {
-    #[argh(option)] // default is no filter
-    /// regex to apply and filter results
-    filter: Option<String>,
+	#[argh(option)] // default is no filter
+	/// regex to apply and filter results
+	filter: Option<String>,
 }
 
 pub fn app() -> Result<(), Error> {
-    let app: App = argh::from_env();
+	let app: App = argh::from_env();
 
-    match &app.action {
-        TraceAction::AllTraces(all_traces) => traces(&app, &all_traces)?,
-        TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
-        TraceAction::Services(serv) => services(&app, &serv)?,
-    }
-    Ok(())
+	match &app.action {
+		TraceAction::AllTraces(all_traces) => traces(&app, &all_traces)?,
+		TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
+		TraceAction::Services(serv) => services(&app, &serv)?,
+	}
+	Ok(())
 }
 
 /// Return All Traces.
 fn traces(app: &App, all_traces: &AllTraces) -> Result<(), Error> {
-    let api = JaegerApi::new(&app.url);
-    let data = api.traces(app, all_traces)?;
-    if app.pretty_print {
-        println!("{}", serde_json::to_string_pretty(&data)?);
-    } else {
-        println!("{}", serde_json::to_string(&data)?);
-    }
-    Ok(())
+	let api = JaegerApi::new(&app.url);
+	let data = api.traces(app, all_traces)?;
+	if app.pretty_print {
+		println!("{}", serde_json::to_string_pretty(&data)?);
+	} else {
+		println!("{}", serde_json::to_string(&data)?);
+	}
+	Ok(())
 }
 
 /// Get a span by its Hex String ID
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
-    let api = JaegerApi::new(&app.url);
-    let data = api.trace(app, trace)?;
-    if app.pretty_print {
-        println!("{}", serde_json::to_string_pretty(&data)?);
-    } else {
-        println!("{}", serde_json::to_string(&data)?);
-    }
+	let api = JaegerApi::new(&app.url);
+	let data = api.trace(app, trace)?;
+	if app.pretty_print {
+		println!("{}", serde_json::to_string_pretty(&data)?);
+	} else {
+		println!("{}", serde_json::to_string(&data)?);
+	}
 
-    Ok(())
+	Ok(())
 }
 
 /// Get a list of services reporting to the Jaeger Agent and print them out.
 fn services(app: &App, services: &Services) -> Result<(), Error> {
-    let api = JaegerApi::new(&app.url);
-    let data = api.services(app, services)?;
-    for item in data.iter() {
-        println!("{}", item);
-    }
-    Ok(())
+	let api = JaegerApi::new(&app.url);
+	let data = api.services(app, services)?;
+	for item in data.iter() {
+		println!("{}", item);
+	}
+	Ok(())
 }

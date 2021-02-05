@@ -21,6 +21,6 @@ mod cli;
 mod primitives;
 
 fn main() -> Result<(), Error> {
-    cli::app()?;
-    Ok(())
+	cli::app()?;
+	Ok(())
 }

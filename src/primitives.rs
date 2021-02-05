@@ -20,67 +20,77 @@ use std::collections::HashMap;
 /// RPC Primitives
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RpcResponse<T> {
-    data: Vec<T>,
-    total: usize,
-    limit: usize,
-    offset: usize,
-    errors: Option<String>,
+	data: Vec<T>,
+	total: usize,
+	limit: usize,
+	offset: usize,
+	errors: Option<serde_json::Value>,
 }
 
 impl<T> RpcResponse<T> {
-    pub fn consume(self) -> Vec<T> {
-        self.data
-    }
+	pub fn consume(self) -> Vec<T> {
+		self.data
+	}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TraceObject {
-    #[serde(rename = "traceID")]
-    trace_id: String,
-    spans: Vec<Span>,
-    processes: HashMap<String, Process>,
-    warnings: Option<Vec<String>>, // FIXME: Don't know what actual value of 'warnings' looks like
+	#[serde(rename = "traceID")]
+	trace_id: String,
+	spans: Vec<Span>,
+	processes: HashMap<String, Process>,
+	warnings: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Span {
-    #[serde(rename = "traceID")]
-    trace_id: String,
-    #[serde(rename = "spanID")]
-    span_id: String,
-    flags: usize,
-    #[serde(rename = "operationName")]
-    operation_name: String,
-    references: Vec<String>, // FIXME: not sure what an actual 'reference' value looks like
-    #[serde(rename = "startTime")]
-    start_time: usize,
-    duration: usize,
-    tags: Vec<Tag>,
-    logs: Vec<String>, // FIXME: not sure what an actual 'log' looks like
-    #[serde(rename = "processID")]
-    process_id: String,
-    warnings: Option<Vec<String>>, // FIXME: not sure what the actual value for 'warnings' looks like
+	#[serde(rename = "traceID")]
+	trace_id: String,
+	#[serde(rename = "spanID")]
+	span_id: String,
+	flags: Option<usize>,
+	#[serde(rename = "operationName")]
+	operation_name: String,
+	references: Vec<Reference>,
+	#[serde(rename = "startTime")]
+	start_time: usize,
+	duration: usize,
+	tags: Vec<Tag>,
+	logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
+	#[serde(rename = "processID")]
+	process_id: String,
+	warnings: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Tag {
-    key: String,
-    #[serde(rename = "type")]
-    ty: String,
-    value: TagValue,
+	key: String,
+	#[serde(rename = "type")]
+	ty: String,
+	value: TagValue,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 enum TagValue {
-    String(String),
-    Boolean(bool),
-    Number(usize),
+	String(String),
+	Boolean(bool),
+	Number(usize),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Process {
-    #[serde(rename = "serviceName")]
-    service_name: String,
-    tags: Vec<Tag>,
+	#[serde(rename = "serviceName")]
+	service_name: String,
+	tags: Vec<Tag>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Reference {
+	#[serde(rename = "refType")]
+	ref_type: String,
+	#[serde(rename = "traceID")]
+	trace_id: String,
+	#[serde(rename = "spanID")]
+	span_id: String,
 }
