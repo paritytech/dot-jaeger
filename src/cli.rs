@@ -113,6 +113,7 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
     Ok(())
 }
 
+/// Get a list of services reporting to the Jaeger Agent and print them out.
 fn services(app: &App, services: &Services) -> Result<(), Error> {
     let api = JaegerApi::new(&app.url);
     let data = api.services(app, services)?;

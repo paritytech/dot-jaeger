@@ -117,7 +117,6 @@ fn endpoint(url: &str, endpoint: Endpoint) -> String {
 }
 
 // TODO: Params to Implement
-// Lookback : How far back in time to look
 // minDuration
 // maxDuration
 // operation
