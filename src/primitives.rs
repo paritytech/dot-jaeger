@@ -39,7 +39,7 @@ pub struct TraceObject {
 	trace_id: String,
 	spans: Vec<Span>,
 	processes: HashMap<String, Process>,
-	warnings: Option<serde_json::Value>, // FIXME: Don't know what actual value of 'warnings' looks like
+	warnings: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -59,7 +59,7 @@ struct Span {
 	logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
 	#[serde(rename = "processID")]
 	process_id: String,
-	warnings: Option<serde_json::Value>, // FIXME: not sure what the actual value for 'warnings' looks like
+	warnings: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
