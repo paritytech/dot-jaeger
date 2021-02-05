@@ -24,7 +24,7 @@ pub struct RpcResponse<T> {
     total: usize,
     limit: usize,
     offset: usize,
-    errors: Option<String>,
+    errors: Option<serde_json::Value>,
 }
 
 impl<T> RpcResponse<T> {
@@ -39,7 +39,7 @@ pub struct TraceObject {
     trace_id: String,
     spans: Vec<Span>,
     processes: HashMap<String, Process>,
-    warnings: Option<Vec<String>>, // FIXME: Don't know what actual value of 'warnings' looks like
+    warnings: Option<serde_json::Value>, // FIXME: Don't know what actual value of 'warnings' looks like
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -48,18 +48,18 @@ struct Span {
     trace_id: String,
     #[serde(rename = "spanID")]
     span_id: String,
-    flags: usize,
+    flags: Option<usize>,
     #[serde(rename = "operationName")]
     operation_name: String,
-    references: Vec<String>, // FIXME: not sure what an actual 'reference' value looks like
+    references: Vec<Reference>,
     #[serde(rename = "startTime")]
     start_time: usize,
     duration: usize,
     tags: Vec<Tag>,
-    logs: Vec<String>, // FIXME: not sure what an actual 'log' looks like
+    logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
     #[serde(rename = "processID")]
     process_id: String,
-    warnings: Option<Vec<String>>, // FIXME: not sure what the actual value for 'warnings' looks like
+    warnings: Option<serde_json::Value>, // FIXME: not sure what the actual value for 'warnings' looks like
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,4 +83,14 @@ struct Process {
     #[serde(rename = "serviceName")]
     service_name: String,
     tags: Vec<Tag>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Reference {
+	#[serde(rename = "refType")]
+	ref_type: String,
+	#[serde(rename = "traceID")]
+	trace_id: String,
+	#[serde(rename = "spanID")]
+	span_id: String
 }
