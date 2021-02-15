@@ -90,7 +90,7 @@ pub struct Daemon {
 	port: usize,
 }
 
-fn default_port() -> usize {
+const fn default_port() -> usize {
 	9186
 }
 
