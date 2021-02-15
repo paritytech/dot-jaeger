@@ -17,7 +17,7 @@
 use anyhow::Error;
 use argh::FromArgs;
 
-use crate::api::JaegerApi;
+use crate::{api::JaegerApi, daemon::PromDaemon};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
@@ -48,6 +48,7 @@ enum TraceAction {
 	AllTraces(AllTraces),
 	Trace(Trace),
 	Services(Services),
+	Daemon(Daemon),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -77,6 +78,22 @@ pub struct Services {
 	filter: Option<String>,
 }
 
+#[derive(FromArgs, PartialEq, Debug)]
+#[argh(subcommand, name = "daemon")]
+/// Daemonize Jaeger Trace collection to run at some interval
+pub struct Daemon {
+	#[argh(option)]
+	/// frequency to update jaeger metrics in milliseconds.
+	frequency: Option<usize>,
+	#[argh(option, default = "default_port()")]
+	/// port to expose prometheus metrics at. Default 9186
+	port: usize,
+}
+
+fn default_port() -> usize {
+	9186
+}
+
 pub fn app() -> Result<(), Error> {
 	let app: App = argh::from_env();
 
@@ -84,6 +101,7 @@ pub fn app() -> Result<(), Error> {
 		TraceAction::AllTraces(all_traces) => traces(&app, &all_traces)?,
 		TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
 		TraceAction::Services(serv) => services(&app, &serv)?,
+		TraceAction::Daemon(daemon) => daemonize(&app, daemon)?,
 	}
 	Ok(())
 }
@@ -120,5 +138,14 @@ fn services(app: &App, services: &Services) -> Result<(), Error> {
 	for item in data.iter() {
 		println!("{}", item);
 	}
+	Ok(())
+}
+
+fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
+	let api = JaegerApi::new(&app.url);
+	println!("Launching Jaeger Collector daemon!");
+	let daemon = PromDaemon::new(daemon.port);
+	daemon.start();
+	// let data = api.services(app, daemon)?;
 	Ok(())
 }
