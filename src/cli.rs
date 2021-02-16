@@ -88,9 +88,6 @@ pub struct Daemon {
 	#[argh(option, default = "default_port()")]
 	/// port to expose prometheus metrics at. Default 9186
 	port: usize,
-	/// the service reporting to Jaeger to observe with Prometheus.
-	#[argh(option)]
-	service: String,
 }
 
 const fn default_port() -> usize {
