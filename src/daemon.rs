@@ -86,7 +86,7 @@ impl<'a> PrometheusDaemon<'a> {
 
 // TODO:
 // - Need to group candidates by their parent span ID
-// - Organize Candidates by the 'stage' tag (not yet implemented)
+// - Organize Candidates by the 'stage' tag (not yet implemented in substrate)
 // 		- once stage tag is implemented, we can track how many/which candidates reach the end of the cycle
 //
 
