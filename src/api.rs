@@ -68,7 +68,7 @@ impl<'a> JaegerApi<'a> {
 	}
 
 	/// Get many traces belonging to one service from this Jaeger Agent.
-	pub fn traces(&self, app: &App, all_traces: &AllTraces) -> Result<Vec<TraceObject>, Error> {
+	pub fn traces(&self, app: &App) -> Result<Vec<TraceObject>, Error> {
 		let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
 		let req = build_parameters(req, app);
 		let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
@@ -76,9 +76,9 @@ impl<'a> JaegerApi<'a> {
 	}
 
 	/// Get a single trace from the Jaeger Agent
-	pub fn trace(&self, app: &App, trace: &Trace) -> Result<TraceObject, Error> {
+	pub fn trace(&self, app: &App, id: &str) -> Result<TraceObject, Error> {
 		// /api/traces/{trace_id}
-		let req = ureq::get(&format!("{}/{}", &endpoint(self.url, Endpoint::Traces), trace.id.to_string()));
+		let req = ureq::get(&format!("{}/{}", &endpoint(self.url, Endpoint::Traces), id.to_string()));
 		let req = build_parameters(req, app);
 		let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
 		// if the response is succesful we should have exactly 1 item
@@ -86,7 +86,7 @@ impl<'a> JaegerApi<'a> {
 	}
 
 	/// Query the services that reporting to this Jaeger Agent
-	pub fn services(&self, app: &App, services: &Services) -> Result<Vec<String>, Error> {
+	pub fn services(&self, app: &App) -> Result<Vec<String>, Error> {
 		let req = ureq::get(&endpoint(&self.url, Endpoint::Services));
 		let req = build_parameters(req, app);
 		let response: RpcResponse<String> = req.call()?.into_json()?;

@@ -88,6 +88,9 @@ pub struct Daemon {
 	#[argh(option, default = "default_port()")]
 	/// port to expose prometheus metrics at. Default 9186
 	port: usize,
+	/// the service reporting to Jaeger to observe with Prometheus.
+	#[argh(option)]
+	service: String,
 }
 
 const fn default_port() -> usize {
@@ -107,9 +110,9 @@ pub fn app() -> Result<(), Error> {
 }
 
 /// Return All Traces.
-fn traces(app: &App, all_traces: &AllTraces) -> Result<(), Error> {
+fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	let data = api.traces(app, all_traces)?;
+	let data = api.traces(app)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
 	} else {
@@ -121,7 +124,7 @@ fn traces(app: &App, all_traces: &AllTraces) -> Result<(), Error> {
 /// Get a span by its Hex String ID
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	let data = api.trace(app, trace)?;
+	let data = api.trace(app, &trace.id)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
 	} else {
@@ -132,20 +135,20 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 }
 
 /// Get a list of services reporting to the Jaeger Agent and print them out.
-fn services(app: &App, services: &Services) -> Result<(), Error> {
+fn services(app: &App, _: &Services) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	let data = api.services(app, services)?;
+	let data = api.services(app)?;
 	for item in data.iter() {
 		println!("{}", item);
 	}
 	Ok(())
 }
 
+/// Daemonize collecting Jaeger Metrics every few seconds, reporting everything to Prometheus.
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	println!("Launching Jaeger Collector daemon!");
-	let daemon = PrometheusDaemon::new(daemon.port);
-	daemon.start();
-	// let data = api.services(app, daemon)?;
+	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app);
+	daemon.start()?;
 	Ok(())
 }
