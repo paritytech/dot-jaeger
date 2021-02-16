@@ -17,7 +17,7 @@
 //! Rust Code wrapping Jaeger-Agent HTTP API
 
 use crate::{
-	cli::{AllTraces, App, Services, Trace},
+	cli::App,
 	primitives::{RpcResponse, TraceObject},
 };
 use anyhow::Error;
@@ -92,11 +92,6 @@ impl<'a> JaegerApi<'a> {
 		let response: RpcResponse<String> = req.call()?.into_json()?;
 		Ok(response.consume())
 	}
-}
-
-/// Applies a regex filter to the arguments
-fn apply_filter(input: String) -> String {
-	todo!();
 }
 
 fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {

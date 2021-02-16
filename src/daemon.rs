@@ -20,8 +20,6 @@ use crate::{api::JaegerApi, cli::App, primitives::Span};
 use anyhow::Error;
 use log::info;
 use prometheus_exporter::prometheus::register_gauge;
-use prometheus_exporter::{self, prometheus::register_counter};
-use rand::Rng;
 use std::{
 	collections::HashMap,
 	iter::Extend,
