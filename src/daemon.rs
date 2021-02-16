@@ -22,11 +22,11 @@ use prometheus_exporter::{self, prometheus::register_counter};
 use rand::Rng;
 use std::net::SocketAddr;
 
-pub struct PromDaemon {
+pub struct PrometheusDaemon {
 	port: usize,
 }
 
-impl PromDaemon {
+impl PrometheusDaemon {
 	pub fn new(port: usize) -> Self {
 		Self { port }
 	}

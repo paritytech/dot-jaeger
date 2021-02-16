@@ -17,7 +17,7 @@
 use anyhow::Error;
 use argh::FromArgs;
 
-use crate::{api::JaegerApi, daemon::PromDaemon};
+use crate::{api::JaegerApi, daemon::PrometheusDaemon};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
@@ -144,7 +144,7 @@ fn services(app: &App, services: &Services) -> Result<(), Error> {
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	println!("Launching Jaeger Collector daemon!");
-	let daemon = PromDaemon::new(daemon.port);
+	let daemon = PrometheusDaemon::new(daemon.port);
 	daemon.start();
 	// let data = api.services(app, daemon)?;
 	Ok(())
