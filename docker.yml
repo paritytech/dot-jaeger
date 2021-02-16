@@ -1,0 +1,15 @@
+version: '2'
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - '/home/insipx/projects/parity/dot-jaeger/prometheus.yml:/etc/prometheus/prometheus.yml'
+    environment: []
+    network_mode: 'host'
+  grafana:
+    image: grafana/grafana
+    ports:
+      - '3000:3000'
+
