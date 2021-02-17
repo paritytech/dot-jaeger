@@ -64,7 +64,7 @@ pub struct Span {
 
 impl Span {
 	pub fn get_tag(&self, key: &str) -> Option<&Tag> {
-		self.tags.iter().find(|t| &t.key == key)
+		self.tags.iter().find(|t| t.key == key)
 	}
 }
 
