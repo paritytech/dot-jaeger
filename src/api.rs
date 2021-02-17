@@ -99,7 +99,7 @@ fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
 }
 
 fn endpoint(url: &str, endpoint: Endpoint) -> String {
-	format!("{}/{}", url, endpoint)
+	format!("{}{}", url, endpoint)
 }
 
 // TODO: Params to Implement

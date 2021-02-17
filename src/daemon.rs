@@ -106,8 +106,7 @@ impl Metrics {
 		if let Some(vec) = self.candidates.get_mut(hash) {
 			vec.push(item);
 		} else {
-			let mut new = Vec::new();
-			new.push(item);
+			let new = vec![item];
 			self.candidates.insert(*hash, new);
 		}
 	}
@@ -121,6 +120,7 @@ impl Extend<Span> for Metrics {
 	fn extend<T: IntoIterator<Item = Span>>(&mut self, iter: T) {
 		for span in iter {
 			if let Some(tag) = span.get_tag(HASH_IDENTIFIER) {
+				println!("{:?}", tag);
 				let mut hash: CandidateHash = [0u8; 32];
 				hex::decode_to_slice(tag.value(), &mut hash).unwrap();
 				self.insert(&hash, span);
