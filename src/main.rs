@@ -15,12 +15,16 @@
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
 use anyhow::Error;
+use env_logger::{Builder, Env};
 
 mod api;
 mod cli;
+mod daemon;
 mod primitives;
 
 fn main() -> Result<(), Error> {
+	Builder::from_env(Env::default().default_filter_or("info")).init();
+
 	cli::app()?;
 	Ok(())
 }

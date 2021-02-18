@@ -37,13 +37,13 @@ impl<T> RpcResponse<T> {
 pub struct TraceObject {
 	#[serde(rename = "traceID")]
 	trace_id: String,
-	spans: Vec<Span>,
+	pub spans: Vec<Span>,
 	processes: HashMap<String, Process>,
 	warnings: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Span {
+pub struct Span {
 	#[serde(rename = "traceID")]
 	trace_id: String,
 	#[serde(rename = "spanID")]
@@ -62,31 +62,53 @@ struct Span {
 	warnings: Option<Vec<String>>,
 }
 
+impl Span {
+	pub fn get_tag(&self, key: &str) -> Option<&Tag> {
+		self.tags.iter().find(|t| &t.key == key)
+	}
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-struct Tag {
+pub struct Tag {
 	key: String,
 	#[serde(rename = "type")]
 	ty: String,
 	value: TagValue,
 }
 
+impl Tag {
+	pub fn value(&self) -> String {
+		self.value.to_string()
+	}
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-enum TagValue {
+pub enum TagValue {
 	String(String),
 	Boolean(bool),
 	Number(usize),
 }
 
+impl ToString for TagValue {
+	fn to_string(&self) -> String {
+		match self {
+			TagValue::String(s) => s.to_string(),
+			TagValue::Boolean(b) => b.to_string(),
+			TagValue::Number(n) => n.to_string(),
+		}
+	}
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-struct Process {
+pub struct Process {
 	#[serde(rename = "serviceName")]
 	service_name: String,
 	tags: Vec<Tag>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Reference {
+pub struct Reference {
 	#[serde(rename = "refType")]
 	ref_type: String,
 	#[serde(rename = "traceID")]

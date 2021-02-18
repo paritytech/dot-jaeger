@@ -17,7 +17,7 @@
 use anyhow::Error;
 use argh::FromArgs;
 
-use crate::api::JaegerApi;
+use crate::{api::JaegerApi, daemon::PrometheusDaemon};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
@@ -48,6 +48,7 @@ enum TraceAction {
 	AllTraces(AllTraces),
 	Trace(Trace),
 	Services(Services),
+	Daemon(Daemon),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -77,6 +78,22 @@ pub struct Services {
 	filter: Option<String>,
 }
 
+#[derive(FromArgs, PartialEq, Debug)]
+#[argh(subcommand, name = "daemon")]
+/// Daemonize Jaeger Trace collection to run at some interval
+pub struct Daemon {
+	#[argh(option)]
+	/// frequency to update jaeger metrics in milliseconds.
+	frequency: Option<usize>,
+	#[argh(option, default = "default_port()")]
+	/// port to expose prometheus metrics at. Default 9186
+	port: usize,
+}
+
+const fn default_port() -> usize {
+	9186
+}
+
 pub fn app() -> Result<(), Error> {
 	let app: App = argh::from_env();
 
@@ -84,14 +101,15 @@ pub fn app() -> Result<(), Error> {
 		TraceAction::AllTraces(all_traces) => traces(&app, &all_traces)?,
 		TraceAction::Trace(trace_opts) => trace(&app, &trace_opts)?,
 		TraceAction::Services(serv) => services(&app, &serv)?,
+		TraceAction::Daemon(daemon) => daemonize(&app, daemon)?,
 	}
 	Ok(())
 }
 
 /// Return All Traces.
-fn traces(app: &App, all_traces: &AllTraces) -> Result<(), Error> {
+fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	let data = api.traces(app, all_traces)?;
+	let data = api.traces(app)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
 	} else {
@@ -103,7 +121,7 @@ fn traces(app: &App, all_traces: &AllTraces) -> Result<(), Error> {
 /// Get a span by its Hex String ID
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	let data = api.trace(app, trace)?;
+	let data = api.trace(app, &trace.id)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
 	} else {
@@ -114,11 +132,20 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 }
 
 /// Get a list of services reporting to the Jaeger Agent and print them out.
-fn services(app: &App, services: &Services) -> Result<(), Error> {
+fn services(app: &App, _: &Services) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	let data = api.services(app, services)?;
+	let data = api.services(app)?;
 	for item in data.iter() {
 		println!("{}", item);
 	}
+	Ok(())
+}
+
+/// Daemonize collecting Jaeger Metrics every few seconds, reporting everything to Prometheus.
+fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
+	let api = JaegerApi::new(&app.url);
+	println!("Launching Jaeger Collector daemon!");
+	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app);
+	daemon.start()?;
 	Ok(())
 }
