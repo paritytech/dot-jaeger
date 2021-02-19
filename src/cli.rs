@@ -108,7 +108,7 @@ pub fn app() -> Result<(), Error> {
 
 /// Return All Traces.
 fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
-	let api = JaegerApi::new(&app.url);
+	let api = JaegerApi::new(&app.url, None);
 	let data = api.traces(app)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
@@ -120,7 +120,7 @@ fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 
 /// Get a span by its Hex String ID
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
-	let api = JaegerApi::new(&app.url);
+	let api = JaegerApi::new(&app.url, None);
 	let data = api.trace(app, &trace.id)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
@@ -133,7 +133,7 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 
 /// Get a list of services reporting to the Jaeger Agent and print them out.
 fn services(app: &App, _: &Services) -> Result<(), Error> {
-	let api = JaegerApi::new(&app.url);
+	let api = JaegerApi::new(&app.url, None);
 	let data = api.services(app)?;
 	for item in data.iter() {
 		println!("{}", item);
@@ -143,7 +143,7 @@ fn services(app: &App, _: &Services) -> Result<(), Error> {
 
 /// Daemonize collecting Jaeger Metrics every few seconds, reporting everything to Prometheus.
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
-	let api = JaegerApi::new(&app.url);
+	let api = JaegerApi::new(&app.url, Some(std::time::Duration::from_secs(10)));
 	println!("Launching Jaeger Collector daemon!");
 	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app);
 	daemon.start()?;

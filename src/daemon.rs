@@ -19,11 +19,18 @@
 use crate::{api::JaegerApi, cli::App, primitives::Span};
 use anyhow::Error;
 use log::info;
-use prometheus_exporter::prometheus::register_gauge;
+use prometheus_exporter::{
+	prometheus::{
+		Gauge,
+		register_gauge
+	},
+};
+use crossbeam::thread;
 use std::{
 	collections::HashMap,
 	iter::Extend,
 	net::SocketAddr,
+	time::Duration,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -53,34 +60,44 @@ impl<'a> PrometheusDaemon<'a> {
 
 		// start the exporter and update metrics every five seconds
 		let exporter = prometheus_exporter::start(addr).expect("can not start exporter");
-		let duration = std::time::Duration::from_millis(5000);
 
-		// Create metric
-		let parachain_total_candidates =
-			register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
-				.expect("can not create guage random_value_metric");
 
 		let running = Arc::new(AtomicBool::new(true));
 		let r = running.clone();
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
+		let r = running.clone();
 
-		loop {
-			let _guard = exporter.wait_duration(duration);
+		thread::scope(|s| {
+			let request_handle = s.spawn(move |_| {
+				loop {
+					let _guard = exporter.wait_duration(Duration::from_millis(5000));
+					if let Err(e) = self.collect_metrics() {
+						log::error!("{}", e.to_string());
+						r.store(false, Ordering::SeqCst);
+						break;
+					}
+				}
+			});
 
-			let traces = self.api.traces(self.app)?;
-			self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten());
-
-			info!("Updating metrics");
-			// TODO: can do metric updating _in_ metrics as to not pollute this loop
-			parachain_total_candidates.set(self.metrics.candidates() as f64);
-
-			if !running.load(Ordering::SeqCst) {
-				break;
+			while running.load(Ordering::SeqCst) {
+				std::thread::sleep(Duration::from_millis(250));
 			}
-		}
+			request_handle.join().unwrap();
+		}).unwrap();
+		Ok(())
+	}
+
+	fn collect_metrics(&mut self) -> Result<(), Error> {
+		let traces = self.api.traces(self.app)?;
+		self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten());
+
+		info!("Updating metrics");
+		// TODO: can do metric updating _in_ metrics as to not pollute this loop
+		self.metrics.parachain_total_candidates.set(self.metrics.candidates() as f64);
 		Ok(())
 	}
 }
+
 
 // TODO:
 // - Need to group candidates by their parent span ID
@@ -93,11 +110,16 @@ impl<'a> PrometheusDaemon<'a> {
 struct Metrics {
 	candidates: HashMap<CandidateHash, Vec<Span>>,
 	no_candidate: Vec<Span>,
+	parachain_total_candidates: Gauge,
 }
 
 impl Metrics {
 	pub fn new() -> Self {
-		Self { candidates: HashMap::new(), no_candidate: Vec::new() }
+	let parachain_total_candidates =
+		register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
+			.expect("can not create guage random_value_metric");
+
+		Self { candidates: HashMap::new(), no_candidate: Vec::new(), parachain_total_candidates }
 	}
 
 	/// Inserts an item into the Candidate List.

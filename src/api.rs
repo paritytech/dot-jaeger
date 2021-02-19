@@ -21,7 +21,7 @@ use crate::{
 	primitives::{RpcResponse, TraceObject},
 };
 use anyhow::Error;
-use std::fmt;
+use std::{fmt, time::Duration};
 
 /// Endpoints:
 ///
@@ -60,16 +60,24 @@ pub struct JaegerApi<'a> {
 	/// # Example
 	/// http://localhost:16686
 	url: &'a str,
+	agent: ureq::Agent,
 }
 
 impl<'a> JaegerApi<'a> {
-	pub fn new(url: &'a str) -> Self {
-		Self { url }
+	/// Instantiate a new API Object, optionally setting a timeout
+	pub fn new(url: &'a str, timeout: Option<Duration>) -> Self {
+		let mut agent = ureq::builder();
+
+		if let Some(d) = timeout {
+			agent = agent.timeout(d);
+		}
+
+		Self { url, agent: agent.build() }
 	}
 
 	/// Get many traces belonging to one service from this Jaeger Agent.
 	pub fn traces(&self, app: &App) -> Result<Vec<TraceObject>, Error> {
-		let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
+		let req = self.agent.get(&endpoint(self.url, Endpoint::Traces));
 		let req = build_parameters(req, app);
 		let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
 		Ok(response.consume())
@@ -78,7 +86,7 @@ impl<'a> JaegerApi<'a> {
 	/// Get a single trace from the Jaeger Agent
 	pub fn trace(&self, app: &App, id: &str) -> Result<TraceObject, Error> {
 		// /api/traces/{trace_id}
-		let req = ureq::get(&format!("{}/{}", &endpoint(self.url, Endpoint::Traces), id.to_string()));
+		let req = self.agent.get(&format!("{}/{}", &endpoint(self.url, Endpoint::Traces), id.to_string()));
 		let req = build_parameters(req, app);
 		let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
 		// if the response is succesful we should have exactly 1 item
@@ -87,7 +95,7 @@ impl<'a> JaegerApi<'a> {
 
 	/// Query the services that reporting to this Jaeger Agent
 	pub fn services(&self, app: &App) -> Result<Vec<String>, Error> {
-		let req = ureq::get(&endpoint(&self.url, Endpoint::Services));
+		let req = self.agent.get(&endpoint(&self.url, Endpoint::Services));
 		let req = build_parameters(req, app);
 		let response: RpcResponse<String> = req.call()?.into_json()?;
 		Ok(response.consume())

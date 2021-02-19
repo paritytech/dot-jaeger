@@ -25,8 +25,3 @@ scrape_configs:
   static_configs:
     - targets:
       - localhost:9186
-- job_name: "substrate_node"
-  scrape_interval: 5s
-  static_configs:
-    - targets:
-      - localhost:9615
