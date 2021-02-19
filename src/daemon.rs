@@ -19,22 +19,16 @@
 use crate::{api::JaegerApi, cli::App, primitives::Span};
 use anyhow::Error;
 use log::info;
-use prometheus_exporter::{
-	prometheus::{
-		Gauge,
-		register_gauge
-	},
-};
-use crossbeam::thread;
+use prometheus_exporter::prometheus::{register_gauge, Gauge};
 use std::{
 	collections::HashMap,
 	iter::Extend,
 	net::SocketAddr,
-	time::Duration,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
+	time::Duration,
 };
 
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
@@ -61,29 +55,18 @@ impl<'a> PrometheusDaemon<'a> {
 		// start the exporter and update metrics every five seconds
 		let exporter = prometheus_exporter::start(addr).expect("can not start exporter");
 
-
 		let running = Arc::new(AtomicBool::new(true));
 		let r = running.clone();
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
-		let r = running.clone();
 
-		thread::scope(|s| {
-			let request_handle = s.spawn(move |_| {
-				loop {
-					let _guard = exporter.wait_duration(Duration::from_millis(5000));
-					if let Err(e) = self.collect_metrics() {
-						log::error!("{}", e.to_string());
-						r.store(false, Ordering::SeqCst);
-						break;
-					}
-				}
-			});
-
-			while running.load(Ordering::SeqCst) {
-				std::thread::sleep(Duration::from_millis(250));
+		while running.load(Ordering::SeqCst) {
+			let _guard = exporter.wait_duration(Duration::from_millis(5000));
+			if let Err(e) = self.collect_metrics() {
+				log::error!("{}", e.to_string());
+				running.store(false, Ordering::SeqCst);
+				break;
 			}
-			request_handle.join().unwrap();
-		}).unwrap();
+		}
 		Ok(())
 	}
 
@@ -98,13 +81,11 @@ impl<'a> PrometheusDaemon<'a> {
 	}
 }
 
-
 // TODO:
 // - Need to group candidates by their parent span ID
 // - Organize Candidates by the 'stage' tag (not yet implemented in substrate)
 // 		- once stage tag is implemented, we can track how many/which candidates reach the end of the cycle
 //
-
 /// Objects that tracks metrics per-candidate.
 /// Keeps spans without a candidate in a separate list, for potential reference.
 struct Metrics {
@@ -115,9 +96,9 @@ struct Metrics {
 
 impl Metrics {
 	pub fn new() -> Self {
-	let parachain_total_candidates =
-		register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
-			.expect("can not create guage random_value_metric");
+		let parachain_total_candidates =
+			register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
+				.expect("can not create guage random_value_metric");
 
 		Self { candidates: HashMap::new(), no_candidate: Vec::new(), parachain_total_candidates }
 	}
