@@ -61,23 +61,26 @@ impl<'a> PrometheusDaemon<'a> {
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
 
 		while running.load(Ordering::SeqCst) {
-			let _guard = exporter.wait_duration(Duration::from_millis(5000));
+			let _guard = exporter.wait_duration(Duration::from_millis(1000));
 			if let Err(e) = self.collect_metrics() {
 				log::error!("{}", e.to_string());
 				running.store(false, Ordering::SeqCst);
 				break;
 			}
-			self.metrics.clear();
 		}
 		Ok(())
 	}
 
 	fn collect_metrics(&mut self) -> Result<(), Error> {
+		let now = std::time::Instant::now();
 		let traces = self.api.traces(self.app)?;
+		println!("API Call took {:?} seconds", now.elapsed());
+		println!("Total Traces: {}", traces.len());
 		self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten())?;
 
 		info!("Updating metrics");
 		// TODO: can do metric updating _in_ metrics as to not pollute this loop
+		println!("Total Candidates: {}", self.metrics.candidates());
 		self.metrics.parachain_total_candidates.set(self.metrics.candidates() as f64);
 		Ok(())
 	}
