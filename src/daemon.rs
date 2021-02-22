@@ -22,8 +22,8 @@ use log::info;
 use prometheus_exporter::prometheus::{register_gauge, Gauge};
 use std::{
 	collections::HashMap,
-	iter::Extend,
 	net::SocketAddr,
+	str::FromStr,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
@@ -32,6 +32,7 @@ use std::{
 };
 
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
+pub const STAGE_IDENTIFIER: &str = "candidate-stage";
 
 pub type CandidateHash = [u8; 32];
 
@@ -66,13 +67,14 @@ impl<'a> PrometheusDaemon<'a> {
 				running.store(false, Ordering::SeqCst);
 				break;
 			}
+			self.metrics.clear();
 		}
 		Ok(())
 	}
 
 	fn collect_metrics(&mut self) -> Result<(), Error> {
 		let traces = self.api.traces(self.app)?;
-		self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten());
+		self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten())?;
 
 		info!("Updating metrics");
 		// TODO: can do metric updating _in_ metrics as to not pollute this loop
@@ -89,7 +91,7 @@ impl<'a> PrometheusDaemon<'a> {
 /// Objects that tracks metrics per-candidate.
 /// Keeps spans without a candidate in a separate list, for potential reference.
 struct Metrics {
-	candidates: HashMap<CandidateHash, Vec<Span>>,
+	candidates: HashMap<Stage, Vec<Candidate>>,
 	no_candidate: Vec<Span>,
 	parachain_total_candidates: Gauge,
 }
@@ -105,13 +107,32 @@ impl Metrics {
 
 	/// Inserts an item into the Candidate List.
 	/// If this item does not exist, then the entry will be created from CandidateHash.
-	pub fn insert(&mut self, hash: &CandidateHash, item: Span) {
-		if let Some(vec) = self.candidates.get_mut(hash) {
-			vec.push(item);
+	pub fn insert(&mut self, span: Span) -> Result<(), Error> {
+		if let Some((hash, stage)) = extract_from_span(&span)? {
+			if let Some(v) = self.candidates.get_mut(&stage) {
+				v.push(Candidate { hash, span });
+			} else {
+				let new = vec![Candidate { hash, span }];
+				self.candidates.insert(stage, new);
+			}
 		} else {
-			let new = vec![item];
-			self.candidates.insert(*hash, new);
+			self.no_candidate.push(span)
 		}
+		Ok(())
+	}
+
+	/// Fallible equivalent to [`std::iter::Extend`] trait
+	pub fn extend<T: IntoIterator<Item = Span>>(&mut self, iter: T) -> Result<(), Error> {
+		for span in iter {
+			self.insert(span)?;
+		}
+		Ok(())
+	}
+
+	/// Clear memory of candidates
+	pub fn clear(&mut self) {
+		self.candidates.clear();
+		self.no_candidate.clear();
 	}
 
 	pub fn candidates(&self) -> usize {
@@ -119,16 +140,33 @@ impl Metrics {
 	}
 }
 
-impl Extend<Span> for Metrics {
-	fn extend<T: IntoIterator<Item = Span>>(&mut self, iter: T) {
-		for span in iter {
-			if let Some(tag) = span.get_tag(HASH_IDENTIFIER) {
-				let mut hash: CandidateHash = [0u8; 32];
-				hex::decode_to_slice(&tag.value()[2..], &mut hash).unwrap();
-				self.insert(&hash, span);
-			} else {
-				self.no_candidate.push(span);
-			}
-		}
+struct Candidate {
+	hash: CandidateHash,
+	span: Span,
+}
+
+/// Stage of execution this Candidate is in
+#[derive(PartialEq, Debug, Hash, Eq)]
+struct Stage(u8);
+
+impl FromStr for Stage {
+	type Err = Error;
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let num: u8 = s.parse()?;
+		Ok(Stage(num))
 	}
+}
+
+/// Extract Hash and Stage from a span
+fn extract_from_span(item: &Span) -> Result<Option<(CandidateHash, Stage)>, Error> {
+	let hash_string = item.get_tag(HASH_IDENTIFIER);
+	let stage = item.get_tag(STAGE_IDENTIFIER);
+
+	let mut hash = [0u8; 32];
+	hash_string.map(|h| hex::decode_to_slice(&h.value()[2..], &mut hash)).transpose()?;
+	let stage = stage.map(|s| s.value().parse()).transpose()?;
+
+	let hash: Option<[u8; 32]> = if [0u8; 32] == hash { None } else { Some(hash) };
+
+	Ok(stage.and_then(|s| hash.map(|h| (h, s))))
 }
