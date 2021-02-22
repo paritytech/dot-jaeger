@@ -16,7 +16,11 @@
 
 //! Prometheus Daemon that exports metrics to some port.
 
-use crate::{api::JaegerApi, cli::App, primitives::Span};
+use crate::{
+	api::JaegerApi,
+	cli::App,
+	primitives::{Span, TraceObject},
+};
 use anyhow::Error;
 use log::info;
 use prometheus_exporter::prometheus::{register_gauge, Gauge};
@@ -40,10 +44,10 @@ pub struct PrometheusDaemon<'a> {
 	port: usize,
 	api: &'a JaegerApi<'a>,
 	app: &'a App,
-	metrics: Metrics,
+	metrics: Metrics<'a>,
 }
 
-impl<'a> PrometheusDaemon<'a> {
+impl<'a, 'b> PrometheusDaemon<'a> {
 	pub fn new(port: usize, api: &'a JaegerApi, app: &'a App) -> Self {
 		let metrics = Metrics::new();
 		Self { port, api, app, metrics }
@@ -60,23 +64,25 @@ impl<'a> PrometheusDaemon<'a> {
 		let r = running.clone();
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
 
+		let json = self.api.traces(self.app)?;
 		while running.load(Ordering::SeqCst) {
 			let _guard = exporter.wait_duration(Duration::from_millis(1000));
-			if let Err(e) = self.collect_metrics() {
+			if let Err(e) = self.collect_metrics(&json) {
 				log::error!("{}", e.to_string());
 				running.store(false, Ordering::SeqCst);
 				break;
 			}
 		}
+		self.metrics.clear();
 		Ok(())
 	}
 
-	fn collect_metrics(&mut self) -> Result<(), Error> {
+	fn collect_metrics(&mut self, json: &str) -> Result<(), Error> {
 		let now = std::time::Instant::now();
-		let traces = self.api.traces(self.app)?;
+		let traces = self.api.into_json::<TraceObject>(json)?;
 		println!("API Call took {:?} seconds", now.elapsed());
 		println!("Total Traces: {}", traces.len());
-		self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten())?;
+		// self.metrics.extend(traces.into_iter().map(|t| t.spans).flatten())?;
 
 		info!("Updating metrics");
 		// TODO: can do metric updating _in_ metrics as to not pollute this loop
@@ -93,13 +99,13 @@ impl<'a> PrometheusDaemon<'a> {
 //
 /// Objects that tracks metrics per-candidate.
 /// Keeps spans without a candidate in a separate list, for potential reference.
-struct Metrics {
-	candidates: HashMap<Stage, Vec<Candidate>>,
-	no_candidate: Vec<Span>,
+struct Metrics<'a> {
+	candidates: HashMap<Stage, Vec<Candidate<'a>>>,
+	no_candidate: Vec<Span<'a>>,
 	parachain_total_candidates: Gauge,
 }
 
-impl Metrics {
+impl<'a> Metrics<'a> {
 	pub fn new() -> Self {
 		let parachain_total_candidates =
 			register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
@@ -110,7 +116,7 @@ impl Metrics {
 
 	/// Inserts an item into the Candidate List.
 	/// If this item does not exist, then the entry will be created from CandidateHash.
-	pub fn insert(&mut self, span: Span) -> Result<(), Error> {
+	pub fn insert(&mut self, span: Span<'a>) -> Result<(), Error> {
 		if let Some((hash, stage)) = extract_from_span(&span)? {
 			if let Some(v) = self.candidates.get_mut(&stage) {
 				v.push(Candidate { hash, span });
@@ -125,7 +131,7 @@ impl Metrics {
 	}
 
 	/// Fallible equivalent to [`std::iter::Extend`] trait
-	pub fn extend<T: IntoIterator<Item = Span>>(&mut self, iter: T) -> Result<(), Error> {
+	pub fn extend<T: IntoIterator<Item = Span<'a>>>(&mut self, iter: T) -> Result<(), Error> {
 		for span in iter {
 			self.insert(span)?;
 		}
@@ -143,9 +149,9 @@ impl Metrics {
 	}
 }
 
-struct Candidate {
+struct Candidate<'a> {
 	hash: CandidateHash,
-	span: Span,
+	span: Span<'a>,
 }
 
 /// Stage of execution this Candidate is in

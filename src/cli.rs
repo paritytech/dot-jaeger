@@ -17,7 +17,7 @@
 use anyhow::Error;
 use argh::FromArgs;
 
-use crate::{api::JaegerApi, daemon::PrometheusDaemon};
+use crate::{api::JaegerApi, daemon::PrometheusDaemon, primitives::TraceObject};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
@@ -114,6 +114,7 @@ pub fn app() -> Result<(), Error> {
 fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.traces(app)?;
+	let json = api.into_json::<TraceObject>(&data)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
 	} else {
@@ -126,6 +127,7 @@ fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.trace(app, &trace.id)?;
+	let json = api.into_json::<TraceObject>(&data)?;
 	if app.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&data)?);
 	} else {

@@ -34,49 +34,54 @@ impl<T> RpcResponse<T> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TraceObject {
+pub struct TraceObject<'a> {
 	#[serde(rename = "traceID")]
-	trace_id: String,
-	pub spans: Vec<Span>,
-	processes: HashMap<String, Process>,
-	warnings: Option<Vec<String>>,
+	trace_id: &'a str,
+	#[serde(borrow)]
+	pub spans: Vec<Span<'a>>,
+	#[serde(borrow)]
+	processes: HashMap<&'a str, Process<'a>>,
+	warnings: Option<Vec<&'a str>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Span {
+pub struct Span<'a> {
 	#[serde(rename = "traceID")]
-	trace_id: String,
+	trace_id: &'a str,
 	#[serde(rename = "spanID")]
-	span_id: String,
+	span_id: &'a str,
 	flags: Option<usize>,
 	#[serde(rename = "operationName")]
-	operation_name: String,
-	references: Vec<Reference>,
+	operation_name: &'a str,
+	#[serde(borrow)]
+	references: Vec<Reference<'a>>,
 	#[serde(rename = "startTime")]
 	start_time: usize,
 	duration: usize,
-	tags: Vec<Tag>,
+	#[serde(borrow)]
+	tags: Vec<Tag<'a>>,
 	logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
 	#[serde(rename = "processID")]
-	process_id: String,
-	warnings: Option<Vec<String>>,
+	process_id: &'a str,
+	warnings: Option<Vec<&'a str>>,
 }
 
-impl Span {
-	pub fn get_tag(&self, key: &str) -> Option<&Tag> {
+impl<'a> Span<'a> {
+	pub fn get_tag(&self, key: &str) -> Option<&'a Tag> {
 		self.tags.iter().find(|t| t.key == key)
 	}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Tag {
-	key: String,
+pub struct Tag<'a> {
+	key: &'a str,
 	#[serde(rename = "type")]
-	ty: String,
-	value: TagValue,
+	ty: &'a str,
+	#[serde(borrow)]
+	value: TagValue<'a>,
 }
 
-impl Tag {
+impl<'a> Tag<'a> {
 	pub fn value(&self) -> String {
 		self.value.to_string()
 	}
@@ -84,13 +89,13 @@ impl Tag {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
-pub enum TagValue {
-	String(String),
+pub enum TagValue<'a> {
+	String(&'a str),
 	Boolean(bool),
 	Number(usize),
 }
 
-impl ToString for TagValue {
+impl<'a> ToString for TagValue<'a> {
 	fn to_string(&self) -> String {
 		match self {
 			TagValue::String(s) => s.to_string(),
@@ -101,18 +106,19 @@ impl ToString for TagValue {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Process {
+pub struct Process<'a> {
 	#[serde(rename = "serviceName")]
-	service_name: String,
-	tags: Vec<Tag>,
+	service_name: &'a str,
+	#[serde(borrow)]
+	tags: Vec<Tag<'a>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Reference {
+pub struct Reference<'a> {
 	#[serde(rename = "refType")]
-	ref_type: String,
+	ref_type: &'a str,
 	#[serde(rename = "traceID")]
-	trace_id: String,
+	trace_id: &'a str,
 	#[serde(rename = "spanID")]
-	span_id: String,
+	span_id: &'a str,
 }
