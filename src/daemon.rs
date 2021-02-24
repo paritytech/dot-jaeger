@@ -139,8 +139,13 @@ impl Metrics {
 			self.insert(span)?;
 		}
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
-			let count = if let Some(c) = self.candidates.get(&Stage::try_from(i)?) { c.len() } else { 0 };
-			gauge.set(count as f64)
+			let count = self
+				.candidates
+				.get(&Stage::try_from(i)?)
+				.map(|c| c.iter().unique_by(|c| c.hash).collect::<Vec<_>>().len());
+			if let Some(c) = count {
+				gauge.set(c as f64);
+			}
 		}
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
 		self.parachain_total_candidates.set(count as f64);
