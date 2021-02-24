@@ -21,19 +21,22 @@ use crate::{
 	cli::App,
 	primitives::{Span, TraceObject},
 };
-use anyhow::{Error, bail};
-use prometheus_exporter::prometheus::{labels, register_gauge, register_histogram, histogram_opts, linear_buckets, Histogram, Gauge};
+use anyhow::{bail, Error};
+use prometheus_exporter::prometheus::{
+	histogram_opts, labels, linear_buckets, register_gauge, register_histogram, Gauge, Histogram,
+};
 use std::{
 	collections::HashMap,
+	convert::TryFrom,
+	iter::Iterator,
 	net::SocketAddr,
+	str::FromStr,
 	sync::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
-	convert::TryFrom,
 	time::Duration,
 };
-use rand::Rng;
 
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
 pub const STAGE_IDENTIFIER: &str = "candidate-stage";
@@ -66,6 +69,7 @@ impl<'a> PrometheusDaemon<'a> {
 
 		while running.load(Ordering::SeqCst) {
 			let _guard = exporter.wait_duration(Duration::from_millis(1000));
+			self.metrics.clear();
 			let now = std::time::Instant::now();
 			let json = self.api.traces(self.app)?;
 			println!("API Call took {:?} seconds", now.elapsed());
@@ -97,47 +101,48 @@ impl<'a> PrometheusDaemon<'a> {
 /// Keeps spans without a candidate in a separate list, for potential reference.
 struct Metrics {
 	candidates: HashMap<Stage, Vec<Candidate>>,
-	// no_candidate: Vec<Span<'a>>,
 	parachain_total_candidates: Gauge,
-	parachain_histogram: Histogram,
+	// the `zero` stage signifies a candidate that has no stage associated
+	parachain_stage_gauges: [Gauge; 8],
 }
 
 impl Metrics {
 	pub fn new() -> Result<Self, Error> {
 		let parachain_total_candidates =
 			register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
-			.expect("can not create guage parachain_total_candidates metric");
+				.expect("can not create gauge parachain_total_candidates metric");
+		let parachain_stage_gauges = [
+			register_gauge!("stage_0_candidates", "Total Candidates without an associated stage")
+				.expect("can not create gauge stage_0_candidates metric"),
+			register_gauge!("stage_1_candidates", "Total Candidates on Stage 1")
+				.expect("can not create gauge stage_1_candidates metric"),
+			register_gauge!("stage_2_candidates", "Total Candidates on Stage 2")
+				.expect("can not create gauge stage_2_candidates metric"),
+			register_gauge!("stage_3_candidates", "Total Candidates on Stage 3")
+				.expect("can not create gauge stage_3_candidates metric"),
+			register_gauge!("stage_4_candidates", "Total Candidates on Stage 4")
+				.expect("can not create gauge stage_4_candidates metric"),
+			register_gauge!("stage_5_candidates", "Total Candidates on Stage 5")
+				.expect("can not create gauge stage_5_candidates metric"),
+			register_gauge!("stage_6_candidates", "Total Candidates on Stage 6")
+				.expect("can not create gauge stage_6_candidates metric"),
+			register_gauge!("stage_7_candidates", "Total Candidates on Stage 7")
+				.expect("can not create gauge stage_7_candidates metric"),
+		];
 
-		let histogram_opts = histogram_opts!(
-			"parachain_histogram",
-			"track stage of candidates",
-			linear_buckets(0f64, 1f64, 10)?,
-			labels!{
-				"Stage 0".to_string()  => "Stage 0".to_string(),
-				"Stage 1".to_string()  => "Stage 1".to_string(),
-				"Stage 2".to_string()  => "Stage 2".to_string(),
-				"Stage 3".to_string()  => "Stage 3".to_string(),
-				"Stage 4".to_string()  => "Stage 4".to_string(),
-				"Stage 5".to_string()  => "Stage 5".to_string(),
-				"Stage 6".to_string()  => "Stage 6".to_string(),
-				"Stage 7".to_string()  => "Stage 7".to_string(),
-				"Stage 8".to_string()  => "Stage 8".to_string(),
-				"Stage 9".to_string()  => "Stage 9".to_string(),
-				"Stage 10".to_string() => "Stage 10".to_string()
-			}
-		);
-		let parachain_histogram = register_histogram!(histogram_opts)?;
-		Ok(Self { candidates: HashMap::new(), parachain_total_candidates, parachain_histogram })
+		Ok(Self { candidates: HashMap::new(), parachain_total_candidates, parachain_stage_gauges })
 	}
 
 	fn update<'a>(&mut self, traces: impl Iterator<Item = &'a Span<'a>>) -> Result<(), Error> {
 		for span in traces {
 			self.insert(span)?;
 		}
-		for (k, v) in self.candidates.iter() {
-			for _ in 0..v.len() { self.parachain_histogram.observe(*k as f64); }
+		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
+			let count = if let Some(c) = self.candidates.get(&Stage::try_from(i)?) { c.len() } else { 0 };
+			gauge.set(count as f64)
 		}
-		self.parachain_total_candidates.set(self.candidates.len() as f64);
+		let count: usize = self.candidates.values().map(|v| v.len()).sum();
+		self.parachain_total_candidates.set(count as f64);
 
 		Ok(())
 	}
@@ -145,17 +150,17 @@ impl Metrics {
 	/// Inserts an item into the Candidate List.
 	/// If this item does not exist, then the entry will be created from CandidateHash.
 	pub fn insert<'a>(&mut self, span: &'a Span<'a>) -> Result<(), Error> {
-		// TODO: Placeholder randomized stage
-		let stage = rand::thread_rng().gen_range(0..10);
-		if extract_from_span(span)?.is_some() {
+		if let Some(stage) = extract_from_span(span)? {
 			if let Some(v) = self.candidates.get_mut(&stage) {
-				v.push(Candidate::try_from(span)?);
+				let candidate: Option<Candidate> = TryFrom::try_from(span)?;
+				candidate.map(|c| v.push(c));
 			} else {
-				let new = vec![Candidate::try_from(span)?];
-				self.candidates.insert(stage, new);
+				let candidate: Option<Candidate> = Option::try_from(span)?;
+				if let Some(candidate) = candidate {
+					let new = vec![candidate];
+					self.candidates.insert(stage, new);
+				}
 			}
-		} else {
-			// self.no_candidate.push(span)
 		}
 		Ok(())
 	}
@@ -179,38 +184,83 @@ struct Candidate {
 	operation: String,
 }
 
-impl<'a> TryFrom<&'a Span<'a>> for Candidate {
+impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
 	type Error = Error;
-	fn try_from(span: &'a Span<'a>) -> Result<Candidate, Error> {
-		let hash_string =  span.get_tag(HASH_IDENTIFIER);
+	fn try_from(span: &'a Span<'a>) -> Result<Option<Candidate>, Error> {
+		let hash_string = span.get_tag(HASH_IDENTIFIER);
 
 		let mut hash = [0u8; 32];
 		hash_string.map(|h| hex::decode_to_slice(&h.value()[2..], &mut hash)).transpose()?;
-		if [0u8; 32] == hash { bail!("no hash for candidate") } else { hash };
-
-		Ok(Candidate {
-			hash,
-			operation: span.operation_name.to_string(),
-		})
+		if [0u8; 32] == hash {
+			Ok(None)
+		} else {
+			Ok(Some(Candidate { hash, operation: span.operation_name.to_string() }))
+		}
 	}
 }
 
-/// Stage of execution this Candidate is in
-type Stage = u8;
-/*
-impl FromStr for Stage {
-	type Err = Error;
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let num: u8 = s.parse()?;
-		Ok(num)
-	}
-}
-*/
 /// Extract Hash and Stage from a span
 fn extract_from_span(item: &Span) -> Result<Option<Stage>, Error> {
 	let stage = item.get_tag(STAGE_IDENTIFIER);
-	// let stage = stage.map(|s| s.value().parse()).transpose()?;
-	// TODO: PLACEHOLDER STAGE
-	let stage  = Some(0);
+	let stage = stage.map(|s| s.value().parse()).transpose()?;
 	Ok(stage)
+}
+
+// TODO: Consider just importing polkadot 'jaeger' crate
+/// A helper to annotate the stage with a numerical value
+/// to ease the life of the tooling team creating viable
+/// statistical metrics for which stage of the inclusion
+/// pipeline drops a significant amount of candidates,
+/// statistically speaking.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum Stage {
+	NoStage = 0,
+	CandidateSelection = 1,
+	CandidateBacking = 2,
+	StatementDistribution = 3,
+	PoVDistribution = 4,
+	AvailabilityDistribution = 5,
+	AvailabilityRecovery = 6,
+	BitfieldDistribution = 7,
+	// Expand as needed, numbers should be ascending according to the stage
+	// through the inclusion pipeline, or according to the descriptions
+	// in [the path of a para chain block]
+	// (https://polkadot.network/the-path-of-a-parachain-block/)
+	// see [issue](https://github.com/paritytech/polkadot/issues/2389)
+}
+
+impl FromStr for Stage {
+	type Err = Error;
+	fn from_str(s: &str) -> Result<Self, Error> {
+		match s.parse()? {
+			0 => Ok(Stage::NoStage),
+			1 => Ok(Stage::CandidateSelection),
+			2 => Ok(Stage::CandidateBacking),
+			3 => Ok(Stage::StatementDistribution),
+			4 => Ok(Stage::PoVDistribution),
+			5 => Ok(Stage::AvailabilityDistribution),
+			6 => Ok(Stage::AvailabilityRecovery),
+			7 => Ok(Stage::BitfieldDistribution),
+			_ => bail!(format!("stage {} does not exist", s)),
+		}
+	}
+}
+
+impl TryFrom<usize> for Stage {
+	type Error = Error;
+	fn try_from(num: usize) -> Result<Stage, Error> {
+		match num {
+			0 => Ok(Stage::NoStage),
+			1 => Ok(Stage::CandidateSelection),
+			2 => Ok(Stage::CandidateBacking),
+			3 => Ok(Stage::StatementDistribution),
+			4 => Ok(Stage::PoVDistribution),
+			5 => Ok(Stage::AvailabilityDistribution),
+			6 => Ok(Stage::AvailabilityRecovery),
+			7 => Ok(Stage::BitfieldDistribution),
+			_ => bail!(format!("stage {} does not exist", num)),
+		}
+	}
 }
