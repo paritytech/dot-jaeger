@@ -94,10 +94,6 @@ const fn default_port() -> usize {
 	9186
 }
 
-const fn default_timeout() -> u64 {
-	60
-}
-
 pub fn app() -> Result<(), Error> {
 	let app: App = argh::from_env();
 
@@ -116,9 +112,9 @@ fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 	let data = api.traces(app)?;
 	let json = api.into_json::<TraceObject>(&data)?;
 	if app.pretty_print {
-		println!("{}", serde_json::to_string_pretty(&data)?);
+		println!("{}", serde_json::to_string_pretty(&json)?);
 	} else {
-		println!("{}", serde_json::to_string(&data)?);
+		println!("{}", serde_json::to_string(&json)?);
 	}
 	Ok(())
 }
@@ -129,9 +125,9 @@ fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 	let data = api.trace(app, &trace.id)?;
 	let json = api.into_json::<TraceObject>(&data)?;
 	if app.pretty_print {
-		println!("{}", serde_json::to_string_pretty(&data)?);
+		println!("{}", serde_json::to_string_pretty(&json)?);
 	} else {
-		println!("{}", serde_json::to_string(&data)?);
+		println!("{}", serde_json::to_string(&json)?);
 	}
 
 	Ok(())
@@ -151,7 +147,7 @@ fn services(app: &App, _: &Services) -> Result<(), Error> {
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	println!("Launching Jaeger Collector daemon!");
-	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app);
+	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app)?;
 	daemon.start()?;
 	Ok(())
 }

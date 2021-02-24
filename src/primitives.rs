@@ -52,7 +52,7 @@ pub struct Span<'a> {
 	span_id: &'a str,
 	flags: Option<usize>,
 	#[serde(rename = "operationName")]
-	operation_name: &'a str,
+	pub operation_name: &'a str,
 	#[serde(borrow)]
 	references: Vec<Reference<'a>>,
 	#[serde(rename = "startTime")]
