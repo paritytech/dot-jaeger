@@ -22,6 +22,7 @@ use crate::{
 	primitives::{Span, TraceObject},
 };
 use anyhow::{bail, Error};
+use itertool::Itertools;
 use prometheus_exporter::prometheus::{
 	histogram_opts, labels, linear_buckets, register_gauge, register_histogram, Gauge, Histogram,
 };
@@ -141,7 +142,7 @@ impl Metrics {
 			let count = if let Some(c) = self.candidates.get(&Stage::try_from(i)?) { c.len() } else { 0 };
 			gauge.set(count as f64)
 		}
-		let count: usize = self.candidates.values().map(|v| v.len()).sum();
+		let count: usize = self.candidates.values().unique_by(|c| c.hash).map(|v| v.len()).sum();
 		self.parachain_total_candidates.set(count as f64);
 
 		Ok(())
