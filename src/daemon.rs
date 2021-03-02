@@ -41,6 +41,9 @@ use std::{
 
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
 pub const STAGE_IDENTIFIER: &str = "candidate-stage";
+/// Default for Histogram Buckets.
+/// Buckets ranging from 250-20,000 milliseconds in steps of 250 milliseconds
+/// modifying this constant will modify all histogram buckets.
 pub const HISTOGRAM_BUCKETS: &[f64; 80] = &[
 	250.0, 500.0, 750.0, 1000.0, 1250.0, 1500.0, 1750.0, 2000.0, 2250.0, 2500.0, 2750.0, 3000.0, 3250.0, 3500.0,
 	3750.0, 4000.0, 4250.0, 4500.0, 4750.0, 5000.0, 5250.0, 5500.0, 5750.0, 6000.0, 6250.0, 6500.0, 6750.0, 7000.0,
