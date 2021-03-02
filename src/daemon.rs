@@ -21,7 +21,7 @@ use crate::{
 	cli::App,
 	primitives::{Span, TraceObject},
 };
-use anyhow::{bail, Error};
+use anyhow::{anyhow, bail, Error};
 use itertools::Itertools;
 use prometheus_exporter::prometheus::{
 	histogram_opts, labels, linear_buckets, register_gauge, register_histogram, Gauge, Histogram,
@@ -88,7 +88,7 @@ impl<'a> PrometheusDaemon<'a> {
 		let traces = self.api.into_json::<TraceObject>(json)?;
 		println!("Deserialization took {:?} seconds", now.elapsed());
 		println!("Total Traces: {}", traces.len());
-		self.metrics.update(traces.iter().map(|t| t.spans.iter()).flatten())?;
+		self.metrics.update(traces.iter().map(|t| t.spans.iter()).flatten().collect())?;
 		Ok(())
 	}
 }
@@ -134,10 +134,18 @@ impl Metrics {
 		Ok(Self { candidates: HashMap::new(), parachain_total_candidates, parachain_stage_gauges })
 	}
 
-	fn update<'a>(&mut self, traces: impl Iterator<Item = &'a Span<'a>>) -> Result<(), Error> {
-		for span in traces {
-			self.insert(span)?;
+	fn update<'a>(&mut self, traces: Vec<&'a Span<'a>>) -> Result<(), Error> {
+		let mut no_candidates = Vec::new();
+		for span in traces.iter() {
+			if span.get_tag(HASH_IDENTIFIER).is_none() {
+				no_candidates.push(*span);
+			} else {
+				self.insert(span)?;
+			}
 		}
+
+		self.try_resolve_missing_candidates(traces, no_candidates.as_slice());
+		// # Candidates in Each Stage
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
 			let count = self
 				.candidates
@@ -147,6 +155,7 @@ impl Metrics {
 				gauge.set(c as f64);
 			}
 		}
+		// Total Number of Candidates
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
 		self.parachain_total_candidates.set(count as f64);
 
@@ -154,21 +163,29 @@ impl Metrics {
 	}
 
 	/// Inserts an item into the Candidate List.
-	/// If this item does not exist, then the entry will be created from CandidateHash.
 	pub fn insert<'a>(&mut self, span: &'a Span<'a>) -> Result<(), Error> {
-		if let Some(stage) = extract_from_span(span)? {
-			if let Some(v) = self.candidates.get_mut(&stage) {
-				let candidate: Option<Candidate> = TryFrom::try_from(span)?;
-				candidate.map(|c| v.push(c));
-			} else {
-				let candidate: Option<Candidate> = Option::try_from(span)?;
-				if let Some(candidate) = candidate {
-					let new = vec![candidate];
-					self.candidates.insert(stage, new);
-				}
+		let stage = extract_from_span(span)?.unwrap_or(Stage::NoStage);
+		if let Some(v) = self.candidates.get_mut(&stage) {
+			let candidate: Option<Candidate> = TryFrom::try_from(span)?;
+			if let Some(c) = candidate {
+				v.push(c);
+			}
+		} else {
+			let candidate: Option<Candidate> = Option::try_from(span)?;
+			if let Some(c) = candidate {
+				self.candidates.insert(stage, vec![c]);
 			}
 		}
 		Ok(())
+	}
+
+	pub fn try_resolve_missing_candidates<'a>(&mut self, spans: Vec<&'a Span>, no_candidates: &[&'a Span<'a>]) {
+		for missing in no_candidates.iter() {
+			if let Some(f) = spans.iter().find(|s| s.span_id == missing.span_id) {
+				let candidate_hash = f.get_tag(HASH_IDENTIFIER);
+				println!("Found Candidate with hash {:?} that is a parent", candidate_hash);
+			}
+		}
 	}
 
 	/// Fallible equivalent to [`std::iter::Extend`] trait
@@ -185,9 +202,12 @@ impl Metrics {
 	}
 }
 
+#[derive(Debug, PartialEq)]
 struct Candidate {
 	hash: CandidateHash,
 	operation: String,
+	start_time: usize,
+	duration: usize,
 }
 
 impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
@@ -200,11 +220,20 @@ impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
 		if [0u8; 32] == hash {
 			Ok(None)
 		} else {
-			Ok(Some(Candidate { hash, operation: span.operation_name.to_string() }))
+			Ok(Some(Candidate {
+				hash,
+				operation: span.operation_name.to_string(),
+				start_time: span.start_time,
+				duration: span.duration,
+			}))
 		}
 	}
 }
-
+/*
+fn find_parent<'a>(id: &'a str, spans: impl Iterator<Item = &'a Span<'a>>) -> Option<&'a Span<'a>> {
+	spans.find(|s| s.span_id == id)
+}
+*/
 /// Extract Hash and Stage from a span
 fn extract_from_span(item: &Span) -> Result<Option<Stage>, Error> {
 	let stage = item.get_tag(STAGE_IDENTIFIER);

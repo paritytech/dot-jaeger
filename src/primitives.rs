@@ -47,23 +47,23 @@ pub struct TraceObject<'a> {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Span<'a> {
 	#[serde(rename = "traceID")]
-	trace_id: &'a str,
+	pub trace_id: &'a str,
 	#[serde(rename = "spanID")]
-	span_id: &'a str,
-	flags: Option<usize>,
+	pub span_id: &'a str,
+	pub flags: Option<usize>,
 	#[serde(rename = "operationName")]
 	pub operation_name: &'a str,
 	#[serde(borrow)]
-	references: Vec<Reference<'a>>,
+	pub references: Vec<Reference<'a>>,
 	#[serde(rename = "startTime")]
-	start_time: usize,
-	duration: usize,
+	pub start_time: usize,
+	pub duration: usize,
 	#[serde(borrow)]
-	tags: Vec<Tag<'a>>,
-	logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
+	pub tags: Vec<Tag<'a>>,
+	pub logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
 	#[serde(rename = "processID")]
-	process_id: &'a str,
-	warnings: Option<Vec<&'a str>>,
+	pub process_id: &'a str,
+	pub warnings: Option<Vec<&'a str>>,
 }
 
 impl<'a> Span<'a> {
