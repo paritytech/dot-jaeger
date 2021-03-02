@@ -70,6 +70,11 @@ impl<'a> Span<'a> {
 	pub fn get_tag(&self, key: &str) -> Option<&'a Tag> {
 		self.tags.iter().find(|t| t.key == key)
 	}
+
+	pub fn get_child_span_id(&self) -> Option<&'a str> {
+		let child = self.references.iter().find(|r| r.ref_type == "CHILD_OF");
+		child.map(|c| c.span_id)
+	}
 }
 
 #[derive(Serialize, Deserialize, Debug)]

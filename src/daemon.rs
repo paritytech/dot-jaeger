@@ -204,6 +204,7 @@ impl Metrics {
 				self.insert(span)?;
 			}
 		}
+		self.try_resolve_missing_candidates(traces.as_slice(), no_candidates.as_slice());
 
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
@@ -258,10 +259,14 @@ impl Metrics {
 		Ok(())
 	}
 
-	pub fn try_resolve_missing_candidates<'a>(&mut self, spans: Vec<&'a Span>, no_candidates: &[&'a Span<'a>]) {
+	pub fn try_resolve_missing_candidates<'a>(&mut self, spans: &[&'a Span], no_candidates: &[&'a Span<'a>]) {
 		for missing in no_candidates.iter() {
-			if let Some(f) = spans.iter().find(|s| s.span_id == missing.span_id) {
-				println!("Found Candidate with tags {:?} that is a parent", f.tags);
+			if let Some(id) = missing.get_child_span_id() {
+				if let Some(parent) = spans.iter().find(|s| s.span_id == id) {
+					if let Some(h) = parent.get_tag(HASH_IDENTIFIER) {
+						println!("Found Candidate with tags hash {} that is a parent", h.value());
+					}
+				}
 			}
 		}
 	}
