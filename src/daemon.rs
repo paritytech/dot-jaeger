@@ -182,8 +182,7 @@ impl Metrics {
 	pub fn try_resolve_missing_candidates<'a>(&mut self, spans: Vec<&'a Span>, no_candidates: &[&'a Span<'a>]) {
 		for missing in no_candidates.iter() {
 			if let Some(f) = spans.iter().find(|s| s.span_id == missing.span_id) {
-				let candidate_hash = f.get_tag(HASH_IDENTIFIER);
-				println!("Found Candidate with hash {:?} that is a parent", candidate_hash);
+				println!("Found Candidate with tags {:?} that is a parent", f.tags);
 			}
 		}
 	}
