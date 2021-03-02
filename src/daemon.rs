@@ -24,7 +24,7 @@ use crate::{
 use anyhow::{anyhow, bail, Error};
 use itertools::Itertools;
 use prometheus_exporter::prometheus::{
-	histogram_opts, labels, linear_buckets, register_gauge, register_histogram_vec, Gauge, HistogramVec,
+	histogram_opts, labels, linear_buckets, register_gauge, register_histogram, Gauge, Histogram,
 };
 use std::{
 	collections::HashMap,
@@ -41,6 +41,15 @@ use std::{
 
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
 pub const STAGE_IDENTIFIER: &str = "candidate-stage";
+pub const HISTOGRAM_BUCKETS: &[f64; 80] = &[
+	250.0, 500.0, 750.0, 1000.0, 1250.0, 1500.0, 1750.0, 2000.0, 2250.0, 2500.0, 2750.0, 3000.0, 3250.0, 3500.0,
+	3750.0, 4000.0, 4250.0, 4500.0, 4750.0, 5000.0, 5250.0, 5500.0, 5750.0, 6000.0, 6250.0, 6500.0, 6750.0, 7000.0,
+	7250.0, 7500.0, 7750.0, 8000.0, 8250.0, 8500.0, 8750.0, 9000.0, 9250.0, 9500.0, 9750.0, 10_000.0, 10_250.0,
+	10_500.0, 10_750.0, 11_000.0, 11_250.0, 11_500.0, 11_750.0, 12_000.0, 12_250.0, 12_500.0, 12_750.0, 13_000.0,
+	13_250.0, 13_500.0, 13_750.0, 14_000.0, 15_250.0, 15_500.0, 15_750.0, 16_000.0, 16_250.0, 16_500.0, 16_750.0,
+	17_000.0, 17_250.0, 17_500.0, 17_750.0, 18_000.0, 18_250.0, 18_500.0, 18_750.0, 19_000.0, 19_250.0, 19_500.0,
+	19_750.0, 20_000.0, 20_250.0, 20_500.0, 20_750.0, 21_000.0,
+];
 
 pub type CandidateHash = [u8; 32];
 
@@ -105,7 +114,7 @@ struct Metrics {
 	parachain_total_candidates: Gauge,
 	// the `zero` stage signifies a candidate that has no stage associated
 	parachain_stage_gauges: [Gauge; 8],
-	stage_transitions_delta: HistogramVec,
+	parachain_stage_histograms: [Histogram; 8],
 }
 
 impl Metrics {
@@ -132,17 +141,54 @@ impl Metrics {
 				.expect("can not create gauge stage_7_candidates metric"),
 		];
 
-		let stage_transitions_delta = register_histogram_vec!(
-			"stage_transitions_delta",
-			"Distributions of the time it takes to transition between stages",
-			&["stage_1", "stage_2", "stage_3", "stage_4", "stage_5", "stage_6", "stage_7"]
-		)?;
+		let parachain_stage_histograms = [
+			register_histogram!(
+				"stage_0_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_1_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_2_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_3_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_4_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_5_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_6_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_7_duration",
+				"Distributions of the time it takes to transition between stages",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+		];
 
 		Ok(Self {
 			candidates: HashMap::new(),
 			parachain_total_candidates,
 			parachain_stage_gauges,
-			stage_transitions_delta,
+			parachain_stage_histograms,
 		})
 	}
 
@@ -160,11 +206,8 @@ impl Metrics {
 		for stage in self.candidates.keys() {
 			if let Some(c) = self.candidates.get(&stage) {
 				for candidate in c.iter() {
-					self.stage_transitions_delta
-						.local()
-						.with_label_values(&[&format!("stage_{}", stage)])
-						// TODO FIXME: as loses 64 bit precision. Use something like the `conv` crate
-						.observe(candidate.duration as f64);
+					// Jaeger stores durations in microseconds. We divide by 1000 to get milliseconds.
+					self.parachain_stage_histograms[*stage as usize].observe(candidate.duration / 1000f64)
 				}
 			}
 		}
@@ -183,8 +226,9 @@ impl Metrics {
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
 		self.parachain_total_candidates.set(count as f64);
 
-		let with_stage = no_candidates.iter().filter(|c| c.get_tag(STAGE_IDENTIFIER).is_some()).collect::<Vec<_>>().len();
-		println!("Candidates without a candidate-hash but with an associated stage: {}", with_stage)
+		let with_stage =
+			no_candidates.iter().filter(|c| c.get_tag(STAGE_IDENTIFIER).is_some()).collect::<Vec<_>>().len();
+		println!("Spans without a candidate-hash but with an associated stage: {}", with_stage);
 
 		Ok(())
 	}
@@ -233,7 +277,7 @@ struct Candidate {
 	hash: CandidateHash,
 	operation: String,
 	start_time: usize,
-	duration: usize,
+	duration: f64,
 }
 
 impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {

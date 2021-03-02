@@ -57,7 +57,7 @@ pub struct Span<'a> {
 	pub references: Vec<Reference<'a>>,
 	#[serde(rename = "startTime")]
 	pub start_time: usize,
-	pub duration: usize,
+	pub duration: f64,
 	#[serde(borrow)]
 	pub tags: Vec<Tag<'a>>,
 	pub logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
