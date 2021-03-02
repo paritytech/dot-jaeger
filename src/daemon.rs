@@ -231,6 +231,11 @@ impl Metrics {
 
 		let with_stage =
 			no_candidates.iter().filter(|c| c.get_tag(STAGE_IDENTIFIER).is_some()).collect::<Vec<_>>().len();
+
+		println!(
+			"Candidates with a hash but without a stage: {:?}",
+			self.candidates.get(&Stage::NoStage).map(|c| c.len())
+		);
 		println!("Spans without a candidate-hash but with an associated stage: {}", with_stage);
 
 		Ok(())
