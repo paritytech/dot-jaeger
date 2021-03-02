@@ -297,55 +297,55 @@
       "targets": [
         {
           "exemplar": false,
-          "expr": "stage_1_candidates",
+          "expr": " stage_1_candidates",
           "format": "time_series",
           "hide": false,
           "instant": false,
           "interval": "",
           "intervalFactor": 1,
-          "legendFormat": "Stage 1 Candidates",
+          "legendFormat": "Candidate Selection",
           "refId": "B"
         },
         {
           "expr": "stage_2_candidates",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 2 Candidates",
+          "legendFormat": "Candidate Backing",
           "refId": "C"
         },
         {
           "expr": "stage_3_candidates",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 3 Candidates",
+          "legendFormat": "StatementDistribution",
           "refId": "D"
         },
         {
           "expr": "stage_4_candidates",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 4 Candidates",
+          "legendFormat": "PoVDistribution",
           "refId": "E"
         },
         {
           "expr": "stage_5_candidates",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 5 Candidates",
+          "legendFormat": "AvailabilityDistribution",
           "refId": "F"
         },
         {
           "expr": "stage_6_candidates",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 6 Candidates",
+          "legendFormat": "AvailabilityRecovery",
           "refId": "G"
         },
         {
           "expr": "stage_7_candidates",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 7 Candidates",
+          "legendFormat": "BitfieldDistribution",
           "refId": "H"
         },
         {
@@ -373,5 +373,5 @@
   "timezone": "",
   "title": "Parachain Rococo Candidates",
   "uid": "jEVpFpyMk",
-  "version": 2
+  "version": 3
 }
