@@ -1,0 +1,377 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "panels": [
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": null,
+      "fieldConfig": {
+        "defaults": {
+          "color": {},
+          "custom": {},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": []
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "hiddenSeries": false,
+      "id": 6,
+      "legend": {
+        "alignAsTable": false,
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 2,
+      "nullPointMode": "null",
+      "options": {
+        "alertThreshold": true
+      },
+      "percentage": false,
+      "pluginVersion": "7.4.1",
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_1_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 1",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_2_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 2",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_3_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 3",
+          "refId": "D"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_4_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 4",
+          "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_5_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 5",
+          "refId": "F"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_6_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 6",
+          "refId": "G"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(stage_7_duration_bucket[5m])) by (le))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Stage 7",
+          "refId": "H"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Candidate Duration per Stage",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "transparent": true,
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "$$hashKey": "object:342",
+          "format": "short",
+          "label": "Time (ms)",
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "$$hashKey": "object:343",
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "graph": false,
+              "legend": false,
+              "tooltip": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 13,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "graph": {},
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltipOptions": {
+          "mode": "single"
+        }
+      },
+      "pluginVersion": "7.4.1",
+      "targets": [
+        {
+          "expr": "parachain_total_candidates",
+          "instant": false,
+          "interval": "",
+          "legendFormat": "Total Parachain Candidates",
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Total Candidates",
+      "transparent": true,
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 13,
+        "x": 0,
+        "y": 8
+      },
+      "id": 2,
+      "interval": null,
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "text": {}
+      },
+      "pluginVersion": "7.4.1",
+      "targets": [
+        {
+          "exemplar": false,
+          "expr": " stage_1_candidates",
+          "format": "time_series",
+          "hide": false,
+          "instant": false,
+          "interval": "",
+          "intervalFactor": 1,
+          "legendFormat": "Candidate Selection",
+          "refId": "B"
+        },
+        {
+          "expr": "stage_2_candidates",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "Candidate Backing",
+          "refId": "C"
+        },
+        {
+          "expr": "stage_3_candidates",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "StatementDistribution",
+          "refId": "D"
+        },
+        {
+          "expr": "stage_4_candidates",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "PoVDistribution",
+          "refId": "E"
+        },
+        {
+          "expr": "stage_5_candidates",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "AvailabilityDistribution",
+          "refId": "F"
+        },
+        {
+          "expr": "stage_6_candidates",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "AvailabilityRecovery",
+          "refId": "G"
+        },
+        {
+          "expr": "stage_7_candidates",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "BitfieldDistribution",
+          "refId": "H"
+        },
+        {
+          "hide": false,
+          "refId": "I"
+        }
+      ],
+      "title": "Candidates in Each Stage",
+      "transparent": true,
+      "type": "bargauge"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Parachain Rococo Candidates",
+  "uid": "jEVpFpyMk",
+  "version": 3
+}
