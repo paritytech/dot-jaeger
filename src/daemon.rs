@@ -24,11 +24,11 @@ use crate::{
 use anyhow::{anyhow, bail, Error};
 use itertools::Itertools;
 use prometheus_exporter::prometheus::{
-	histogram_opts, labels, linear_buckets, register_gauge, register_histogram, Gauge, Histogram,
+	histogram_opts, labels, linear_buckets, register_gauge, register_histogram_vec, Gauge, HistogramVec,
 };
 use std::{
 	collections::HashMap,
-	convert::TryFrom,
+	convert::{TryFrom, TryInto},
 	iter::Iterator,
 	net::SocketAddr,
 	str::FromStr,
@@ -105,6 +105,7 @@ struct Metrics {
 	parachain_total_candidates: Gauge,
 	// the `zero` stage signifies a candidate that has no stage associated
 	parachain_stage_gauges: [Gauge; 8],
+	stage_transitions_delta: HistogramVec,
 }
 
 impl Metrics {
@@ -131,7 +132,18 @@ impl Metrics {
 				.expect("can not create gauge stage_7_candidates metric"),
 		];
 
-		Ok(Self { candidates: HashMap::new(), parachain_total_candidates, parachain_stage_gauges })
+		let stage_transitions_delta = register_histogram_vec!(
+			"stage_transitions_delta",
+			"Distributions of the time it takes to transition between stages",
+			&["stage_1", "stage_2", "stage_3", "stage_4", "stage_5", "stage_6", "stage_7"]
+		)?;
+
+		Ok(Self {
+			candidates: HashMap::new(),
+			parachain_total_candidates,
+			parachain_stage_gauges,
+			stage_transitions_delta,
+		})
 	}
 
 	fn update<'a>(&mut self, traces: Vec<&'a Span<'a>>) -> Result<(), Error> {
@@ -144,7 +156,19 @@ impl Metrics {
 			}
 		}
 
-		self.try_resolve_missing_candidates(traces, no_candidates.as_slice());
+		// Distribution of Candidate Stage deltas
+		for stage in self.candidates.keys() {
+			if let Some(c) = self.candidates.get(&stage) {
+				for candidate in c.iter() {
+					self.stage_transitions_delta
+						.local()
+						.with_label_values(&[&format!("stage_{}", stage)])
+						// TODO FIXME: as loses 64 bit precision. Use something like the `conv` crate
+						.observe(candidate.duration as f64);
+				}
+			}
+		}
+
 		// # Candidates in Each Stage
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
 			let count = self
@@ -296,5 +320,11 @@ impl TryFrom<usize> for Stage {
 			7 => Ok(Stage::BitfieldDistribution),
 			_ => bail!(format!("stage {} does not exist", num)),
 		}
+	}
+}
+
+impl std::fmt::Display for Stage {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", (*self as usize))
 	}
 }
