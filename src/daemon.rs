@@ -183,6 +183,9 @@ impl Metrics {
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
 		self.parachain_total_candidates.set(count as f64);
 
+		let with_stage = no_candidates.iter().filter(|c| c.get_tag(STAGE_IDENTIFIER).is_some()).collect::<Vec<_>>().len();
+		println!("Candidates without a candidate-hash but with an associated stage: {}", with_stage)
+
 		Ok(())
 	}
 
