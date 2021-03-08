@@ -199,9 +199,12 @@ impl Metrics {
 
 	fn update<'a>(&mut self, traces: Vec<&'a Span<'a>>) -> Result<(), Error> {
 		let mut no_candidates = Vec::new();
+		let mut no_stage = Vec::new();
 		for span in traces.iter() {
 			if span.get_tag(HASH_IDENTIFIER).is_none() {
 				no_candidates.push(*span);
+			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
+				no_stage.push(*span);
 			} else {
 				self.insert(span)?;
 			}
@@ -210,6 +213,7 @@ impl Metrics {
 		let now = std::time::Instant::now();
 		let map = SpanMap::new(traces.as_slice());
 		self.try_resolve_missing_candidates(&map, &mut no_candidates)?;
+		self.try_resolve_missing_stage(&map, &mut no_stage)?;
 		println!("Resolving missing candidates took {:?}", now.elapsed());
 
 		// Distribution of Candidate Stage deltas
@@ -265,7 +269,7 @@ impl Metrics {
 		Ok(())
 	}
 
-	// fallback in case some candidates with a stage are missing a candidate-hash
+	// Fallback in case some candidates are missing a candidate-hash but have a stage.
 	// checks if the parent span has a candidate-hash attached.
 	fn try_resolve_missing_candidates<'a>(
 		&mut self,
@@ -291,6 +295,34 @@ impl Metrics {
 			}
 		}
 		no_candidates.retain(|x| to_remove.iter().any(|&r| r == x.span_id));
+		Ok(())
+	}
+
+	// Fallback for spans where some spans are missing a stage but have a candidate-hash
+	fn try_resolve_missing_stage<'a>(
+		&mut self,
+		map: &SpanMap<'a>,
+		no_stage: &mut Vec<&'a Span<'a>>,
+	) -> Result<(), Error> {
+		let mut to_remove = Vec::new();
+		for missing in no_stage.iter() {
+			if let Some(id) = missing.get_child_span_id() {
+				if let Some(parent) = map.get(id) {
+					if parent.get_tag(STAGE_IDENTIFIER).is_some() {
+						let stage = extract_stage_from_span(parent)?.unwrap_or(Stage::NoStage);
+						if let Some(candidate) = Option::<Candidate>::try_from(*missing)? {
+							if let Some(v) = self.candidates.get_mut(&stage) {
+								v.push(candidate);
+							} else {
+								self.candidates.insert(stage, vec![candidate]);
+							}
+							to_remove.push(missing.span_id);
+						}
+					}
+				}
+			}
+		}
+		no_stage.retain(|x| to_remove.iter().any(|&r| r == x.span_id));
 		Ok(())
 	}
 
@@ -352,6 +384,7 @@ fn extract_hash_from_span(span: &Span) -> Result<Option<CandidateHash>, Error> {
 }
 
 /// Temporary structure to optimize fetching of specific spans
+/// HashMap of SpanId -> Span
 struct SpanMap<'a> {
 	spans: HashMap<&'a str, &'a Span<'a>>,
 }
