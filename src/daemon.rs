@@ -98,9 +98,11 @@ impl<'a> PrometheusDaemon<'a> {
 	fn collect_metrics(&mut self, json: &str) -> Result<(), Error> {
 		let now = std::time::Instant::now();
 		let traces = self.api.into_json::<TraceObject>(json)?;
-		println!("Deserialization took {:?} seconds", now.elapsed());
+		println!("Deserialization took {:?}", now.elapsed());
 		println!("Total Traces: {}", traces.len());
+		let now = std::time::Instant::now();
 		self.metrics.update(traces.iter().map(|t| t.spans.iter()).flatten().collect())?;
+		println!("Updating took {:?}", now.elapsed());
 		Ok(())
 	}
 }
