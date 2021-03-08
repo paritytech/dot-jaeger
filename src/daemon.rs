@@ -21,14 +21,12 @@ use crate::{
 	cli::App,
 	primitives::{Span, TraceObject},
 };
-use anyhow::{anyhow, bail, Error};
+use anyhow::{bail, Error};
 use itertools::Itertools;
-use prometheus_exporter::prometheus::{
-	histogram_opts, labels, linear_buckets, register_gauge, register_histogram, Gauge, Histogram,
-};
+use prometheus_exporter::prometheus::{register_gauge, register_histogram, Gauge, Histogram};
 use std::{
 	collections::HashMap,
-	convert::{TryFrom, TryInto},
+	convert::TryFrom,
 	iter::Iterator,
 	net::SocketAddr,
 	str::FromStr,
@@ -310,6 +308,7 @@ impl Metrics {
 				if let Some(parent) = map.get(id) {
 					if parent.get_tag(STAGE_IDENTIFIER).is_some() {
 						let stage = extract_stage_from_span(parent)?.unwrap_or(Stage::NoStage);
+						println!("Found Stage!: {}", stage);
 						if let Some(candidate) = Option::<Candidate>::try_from(*missing)? {
 							if let Some(v) = self.candidates.get_mut(&stage) {
 								v.push(candidate);

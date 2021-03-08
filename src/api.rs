@@ -16,10 +16,7 @@
 
 //! Rust Code wrapping Jaeger-Agent HTTP API
 
-use crate::{
-	cli::App,
-	primitives::{RpcResponse, TraceObject},
-};
+use crate::{cli::App, primitives::RpcResponse};
 use anyhow::Error;
 use serde::Deserialize;
 use std::fmt;
