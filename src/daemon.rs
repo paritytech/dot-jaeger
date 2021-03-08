@@ -204,7 +204,7 @@ impl Metrics {
 				self.insert(span)?;
 			}
 		}
-		self.try_resolve_missing_candidates(traces.as_slice(), no_candidates.as_slice());
+		self.try_resolve_missing_candidates(traces.as_slice(), no_candidates.as_slice())?;
 
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
@@ -244,7 +244,7 @@ impl Metrics {
 
 	/// Inserts an item into the Candidate List.
 	pub fn insert<'a>(&mut self, span: &'a Span<'a>) -> Result<(), Error> {
-		let stage = extract_from_span(span)?.unwrap_or(Stage::NoStage);
+		let stage = extract_stage_from_span(span)?.unwrap_or(Stage::NoStage);
 		if let Some(v) = self.candidates.get_mut(&stage) {
 			let candidate: Option<Candidate> = TryFrom::try_from(span)?;
 			if let Some(c) = candidate {
@@ -259,22 +259,28 @@ impl Metrics {
 		Ok(())
 	}
 
-	pub fn try_resolve_missing_candidates<'a>(&mut self, spans: &[&'a Span], no_candidates: &[&'a Span<'a>]) {
+	// fallback in case some candidates with a stage are missing a candidate-hash
+	// checks if the parent span has a candidate-hash attached.
+	fn try_resolve_missing_candidates<'a>(
+		&mut self,
+		spans: &[&'a Span],
+		no_candidates: &[&'a Span<'a>],
+	) -> Result<(), Error> {
 		for missing in no_candidates.iter() {
 			if let Some(id) = missing.get_child_span_id() {
 				if let Some(parent) = spans.iter().find(|s| s.span_id == id) {
-					if let Some(h) = parent.get_tag(HASH_IDENTIFIER) {
-						println!("Found Candidate with tags hash {} that is a parent", h.value());
+					if let Some(_) = parent.get_tag(HASH_IDENTIFIER) {
+						let stage = extract_stage_from_span(missing)?.unwrap_or(Stage::NoStage);
+						let hash = extract_hash_from_span(parent)?.expect("Hash must exist because of tag check; qed");
+						let candidate = Candidate::from_other_hash(missing, hash);
+						if let Some(v) = self.candidates.get_mut(&stage) {
+							v.push(candidate)
+						} else {
+							self.candidates.insert(stage, vec![candidate]);
+						}
 					}
 				}
 			}
-		}
-	}
-
-	/// Fallible equivalent to [`std::iter::Extend`] trait
-	pub fn extend<'a, T: IntoIterator<Item = &'a Span<'a>>>(&mut self, iter: T) -> Result<(), Error> {
-		for span in iter {
-			self.insert(span)?;
 		}
 		Ok(())
 	}
@@ -293,35 +299,47 @@ struct Candidate {
 	duration: f64,
 }
 
-impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
-	type Error = Error;
-	fn try_from(span: &'a Span<'a>) -> Result<Option<Candidate>, Error> {
-		let hash_string = span.get_tag(HASH_IDENTIFIER);
-
-		let mut hash = [0u8; 32];
-		hash_string.map(|h| hex::decode_to_slice(&h.value()[2..], &mut hash)).transpose()?;
-		if [0u8; 32] == hash {
-			Ok(None)
-		} else {
-			Ok(Some(Candidate {
-				hash,
-				operation: span.operation_name.to_string(),
-				start_time: span.start_time,
-				duration: span.duration,
-			}))
+impl Candidate {
+	fn from_other_hash<'a>(span: &'a Span, hash: CandidateHash) -> Self {
+		Candidate {
+			hash,
+			operation: span.operation_name.to_string(),
+			start_time: span.start_time,
+			duration: span.duration,
 		}
 	}
 }
-/*
-fn find_parent<'a>(id: &'a str, spans: impl Iterator<Item = &'a Span<'a>>) -> Option<&'a Span<'a>> {
-	spans.find(|s| s.span_id == id)
+
+impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
+	type Error = Error;
+	fn try_from(span: &'a Span<'a>) -> Result<Option<Candidate>, Error> {
+		let hash = extract_hash_from_span(span)?;
+
+		Ok(hash.map(|h| Candidate {
+			hash: h,
+			operation: span.operation_name.to_string(),
+			start_time: span.start_time,
+			duration: span.duration,
+		}))
+	}
 }
-*/
+
 /// Extract Hash and Stage from a span
-fn extract_from_span(item: &Span) -> Result<Option<Stage>, Error> {
+fn extract_stage_from_span(item: &Span) -> Result<Option<Stage>, Error> {
 	let stage = item.get_tag(STAGE_IDENTIFIER);
 	let stage = stage.map(|s| s.value().parse()).transpose()?;
 	Ok(stage)
+}
+
+fn extract_hash_from_span(span: &Span) -> Result<Option<CandidateHash>, Error> {
+	let hash_string = span.get_tag(HASH_IDENTIFIER);
+	let mut hash = [0u8; 32];
+	hash_string.map(|h| hex::decode_to_slice(&h.value()[2..], &mut hash)).transpose()?;
+	if [0u8; 32] == hash {
+		Ok(None)
+	} else {
+		Ok(Some(hash))
+	}
 }
 
 // TODO: Consider just importing polkadot 'jaeger' crate
