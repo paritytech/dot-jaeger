@@ -206,8 +206,11 @@ impl Metrics {
 				self.insert(span)?;
 			}
 		}
+
+		let now = std::time::Instant::now();
 		let map = SpanMap::new(traces.as_slice());
 		self.try_resolve_missing_candidates(&map, &mut no_candidates)?;
+		println!("Resolving missing candidates took {:?}", now.elapsed());
 
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
