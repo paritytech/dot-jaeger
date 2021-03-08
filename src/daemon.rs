@@ -206,7 +206,8 @@ impl Metrics {
 				self.insert(span)?;
 			}
 		}
-		self.try_resolve_missing_candidates(traces.as_slice(), &mut no_candidates)?;
+		let map = SpanMap::new(traces.as_slice());
+		self.try_resolve_missing_candidates(&map, &mut no_candidates)?;
 
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
@@ -265,16 +266,16 @@ impl Metrics {
 	// checks if the parent span has a candidate-hash attached.
 	fn try_resolve_missing_candidates<'a>(
 		&mut self,
-		spans: &[&'a Span],
+		map: &SpanMap<'a>,
 		no_candidates: &mut Vec<&'a Span<'a>>,
 	) -> Result<(), Error> {
 		let mut to_remove = Vec::new();
 		for missing in no_candidates.iter() {
 			if let Some(id) = missing.get_child_span_id() {
-				if let Some(parent) = spans.iter().find(|s| s.span_id == id) {
-					if let Some(_) = parent.get_tag(HASH_IDENTIFIER) {
+				if let Some(parent) = map.get(id) {
+					if parent.get_tag(HASH_IDENTIFIER).is_some() {
 						let stage = extract_stage_from_span(missing)?.unwrap_or(Stage::NoStage);
-						let hash = extract_hash_from_span(parent)?.expect("Hash must exist because of tag check; qed");
+						let hash = extract_hash_from_span(&parent)?.expect("Hash must exist because of tag check; qed");
 						let candidate = Candidate::from_other_hash(missing, hash);
 						if let Some(v) = self.candidates.get_mut(&stage) {
 							v.push(candidate)
@@ -344,6 +345,25 @@ fn extract_hash_from_span(span: &Span) -> Result<Option<CandidateHash>, Error> {
 		Ok(None)
 	} else {
 		Ok(Some(hash))
+	}
+}
+
+/// Temporary structure to optimize fetching of specific spans
+struct SpanMap<'a> {
+	spans: HashMap<&'a str, &'a Span<'a>>,
+}
+
+impl<'a> SpanMap<'a> {
+	fn new(spans: &'a [&'a Span<'a>]) -> Self {
+		let mut map = HashMap::new();
+		for span in spans {
+			map.insert(span.span_id, *span);
+		}
+		Self { spans: map }
+	}
+
+	fn get(&self, id: &'a str) -> Option<&'a Span<'a>> {
+		self.spans.get(id).map(|s| *s)
 	}
 }
 
