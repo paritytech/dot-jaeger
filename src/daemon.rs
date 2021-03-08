@@ -206,7 +206,9 @@ impl Metrics {
 				self.insert(span)?;
 			}
 		}
+		let now = std::time::Instant::now();
 		self.try_resolve_missing_candidates(traces.as_slice(), &mut no_candidates)?;
+		println!("Resolving missing candidates took {:?}", now.elapsed());
 
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
@@ -272,7 +274,7 @@ impl Metrics {
 		for missing in no_candidates.iter() {
 			if let Some(id) = missing.get_child_span_id() {
 				if let Some(parent) = spans.iter().find(|s| s.span_id == id) {
-					if let Some(_) = parent.get_tag(HASH_IDENTIFIER) {
+					if parent.get_tag(HASH_IDENTIFIER).is_some() {
 						let stage = extract_stage_from_span(missing)?.unwrap_or(Stage::NoStage);
 						let hash = extract_hash_from_span(parent)?.expect("Hash must exist because of tag check; qed");
 						let candidate = Candidate::from_other_hash(missing, hash);
