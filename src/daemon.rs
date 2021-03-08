@@ -204,7 +204,7 @@ impl Metrics {
 				self.insert(span)?;
 			}
 		}
-		self.try_resolve_missing_candidates(traces.as_slice(), no_candidates.as_slice())?;
+		self.try_resolve_missing_candidates(traces.as_slice(), &mut no_candidates)?;
 
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
@@ -264,8 +264,9 @@ impl Metrics {
 	fn try_resolve_missing_candidates<'a>(
 		&mut self,
 		spans: &[&'a Span],
-		no_candidates: &[&'a Span<'a>],
+		no_candidates: &mut Vec<&'a Span<'a>>,
 	) -> Result<(), Error> {
+		let mut to_remove = Vec::new();
 		for missing in no_candidates.iter() {
 			if let Some(id) = missing.get_child_span_id() {
 				if let Some(parent) = spans.iter().find(|s| s.span_id == id) {
@@ -278,10 +279,12 @@ impl Metrics {
 						} else {
 							self.candidates.insert(stage, vec![candidate]);
 						}
+						to_remove.push(missing.span_id);
 					}
 				}
 			}
 		}
+		no_candidates.retain(|x| to_remove.iter().any(|&r| r == x.span_id));
 		Ok(())
 	}
 
