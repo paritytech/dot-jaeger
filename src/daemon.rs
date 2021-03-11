@@ -100,14 +100,11 @@ impl<'a> PrometheusDaemon<'a> {
 		println!("Deserialization took {:?}", now.elapsed());
 		println!("Total Traces: {}", traces.len());
 		let now = std::time::Instant::now();
-		// self.metrics.update(traces.iter().map(|t| t.spans.iter()).flatten().collect())?;
+		self.metrics.update(traces)?;
 		println!("Updating took {:?}", now.elapsed());
 		Ok(())
 	}
 }
-
-// we don't worry about DAG weight for traces
-struct Weight;
 
 // TODO:
 // - Need to group candidates by their parent span ID
@@ -199,10 +196,12 @@ impl Metrics {
 		})
 	}
 
-	fn update2<'a>(&mut self, traces: Vec<TraceObject<'a>>) -> Result<(), Error> {
+	fn update<'a>(&mut self, traces: Vec<TraceObject<'a>>) -> Result<(), Error> {
 		for trace in traces.iter() {
 			self.collect_candidates(&trace)?;
 		}
+
+		self.update_metrics()?;
 
 		println!(
 			"Candidates with a hash but without a stage: {:?}",
@@ -215,13 +214,13 @@ impl Metrics {
 		for span in trace.spans.values() {
 			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
 				let candidate = self.try_resolve_missing(trace, span)?;
-				self.insert_candidate(candidate);
+				self.insert_candidate(candidate)?;
 			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
 				let candidate = self.try_resolve_missing(trace, span)?;
-				self.insert_candidate(candidate);
+				self.insert_candidate(candidate)?;
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
 				let candidate = self.try_resolve_missing(trace, span)?;
-				self.insert_candidate(candidate);
+				self.insert_candidate(candidate)?;
 			} else {
 				self.insert(span)?;
 			}
@@ -234,7 +233,7 @@ impl Metrics {
 		Ok(())
 	}
 
-	fn update<'a>(&mut self, traces: Vec<Span<'a>>) -> Result<(), Error> {
+	fn update_metrics<'a>(&mut self) -> Result<(), Error> {
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
 			if let Some(c) = self.candidates.get(&stage) {
