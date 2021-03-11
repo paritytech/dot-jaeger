@@ -53,6 +53,7 @@ pub const HISTOGRAM_BUCKETS: &[f64; 80] = &[
 ];
 
 pub type CandidateHash = [u8; 32];
+pub type SpanMap<'a> = HashMap<&'a str, Span<'a>>;
 
 pub struct PrometheusDaemon<'a> {
 	port: usize,
@@ -99,11 +100,14 @@ impl<'a> PrometheusDaemon<'a> {
 		println!("Deserialization took {:?}", now.elapsed());
 		println!("Total Traces: {}", traces.len());
 		let now = std::time::Instant::now();
-		self.metrics.update(traces.iter().map(|t| t.spans.iter()).flatten().collect())?;
+		// self.metrics.update(traces.iter().map(|t| t.spans.iter()).flatten().collect())?;
 		println!("Updating took {:?}", now.elapsed());
 		Ok(())
 	}
 }
+
+// we don't worry about DAG weight for traces
+struct Weight;
 
 // TODO:
 // - Need to group candidates by their parent span ID
@@ -195,25 +199,42 @@ impl Metrics {
 		})
 	}
 
-	fn update<'a>(&mut self, traces: Vec<&'a Span<'a>>) -> Result<(), Error> {
-		let mut no_candidates = Vec::new();
-		let mut no_stage = Vec::new();
-		for span in traces.iter() {
-			if span.get_tag(HASH_IDENTIFIER).is_none() {
-				no_candidates.push(*span);
+	fn update2<'a>(&mut self, traces: Vec<TraceObject<'a>>) -> Result<(), Error> {
+		for trace in traces.iter() {
+			self.collect_candidates(&trace)?;
+		}
+
+		println!(
+			"Candidates with a hash but without a stage: {:?}",
+			self.candidates.get(&Stage::NoStage).map(|c| c.len())
+		);
+		Ok(())
+	}
+
+	fn collect_candidates<'a>(&mut self, trace: &'a TraceObject<'a>) -> Result<(), Error> {
+		for span in trace.spans.values() {
+			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
+				let candidate = self.try_resolve_missing(trace, span)?;
+				self.insert_candidate(candidate);
+			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
+				let candidate = self.try_resolve_missing(trace, span)?;
+				self.insert_candidate(candidate);
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
-				no_stage.push(*span);
+				let candidate = self.try_resolve_missing(trace, span)?;
+				self.insert_candidate(candidate);
 			} else {
 				self.insert(span)?;
 			}
 		}
 
 		let now = std::time::Instant::now();
-		let map = SpanMap::new(traces.as_slice());
-		self.try_resolve_missing_candidates(&map, &mut no_candidates)?;
-		self.try_resolve_missing_stage(&map, &mut no_stage)?;
+		// self.try_resolve_missing_candidates(&trace.spans, &mut no_candidates)?;
+		// self.try_resolve_missing_stage(&trace.spans, &mut no_stage)?;
 		println!("Resolving missing candidates took {:?}", now.elapsed());
+		Ok(())
+	}
 
+	fn update<'a>(&mut self, traces: Vec<Span<'a>>) -> Result<(), Error> {
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
 			if let Some(c) = self.candidates.get(&stage) {
@@ -238,31 +259,22 @@ impl Metrics {
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
 		self.parachain_total_candidates.set(count as f64);
 
-		let with_stage =
-			no_candidates.iter().filter(|c| c.get_tag(STAGE_IDENTIFIER).is_some()).collect::<Vec<_>>().len();
-
-		println!(
-			"Candidates with a hash but without a stage: {:?}",
-			self.candidates.get(&Stage::NoStage).map(|c| c.len())
-		);
-		println!("Spans without a candidate-hash but with an associated stage: {}", with_stage);
-
 		Ok(())
 	}
 
 	/// Inserts an item into the Candidate List.
 	pub fn insert<'a>(&mut self, span: &'a Span<'a>) -> Result<(), Error> {
-		let stage = extract_stage_from_span(span)?.unwrap_or(Stage::NoStage);
-		if let Some(v) = self.candidates.get_mut(&stage) {
-			let candidate: Option<Candidate> = TryFrom::try_from(span)?;
-			if let Some(c) = candidate {
-				v.push(c);
-			}
+		if let Some(c) = Option::<Candidate>::try_from(span)? {
+			self.insert_candidate(c);
+		}
+		Ok(())
+	}
+
+	fn insert_candidate<'a>(&mut self, candidate: Candidate) -> Result<(), Error> {
+		if let Some(v) = self.candidates.get_mut(&candidate.stage) {
+			v.push(candidate);
 		} else {
-			let candidate: Option<Candidate> = Option::try_from(span)?;
-			if let Some(c) = candidate {
-				self.candidates.insert(stage, vec![c]);
-			}
+			self.candidates.insert(candidate.stage.clone(), vec![candidate]);
 		}
 		Ok(())
 	}
@@ -276,12 +288,12 @@ impl Metrics {
 	) -> Result<(), Error> {
 		let mut to_remove = Vec::new();
 		for missing in no_candidates.iter() {
-			if let Some(id) = missing.get_child_span_id() {
+			if let Some(id) = missing.child_span_id() {
 				if let Some(parent) = map.get(id) {
 					if parent.get_tag(HASH_IDENTIFIER).is_some() {
 						let stage = extract_stage_from_span(missing)?.unwrap_or(Stage::NoStage);
 						let hash = extract_hash_from_span(&parent)?.expect("Hash must exist because of tag check; qed");
-						let candidate = Candidate::from_other_hash(missing, hash);
+						let candidate = Candidate::from_other_hash(missing, hash)?;
 						if let Some(v) = self.candidates.get_mut(&stage) {
 							v.push(candidate)
 						} else {
@@ -304,7 +316,7 @@ impl Metrics {
 	) -> Result<(), Error> {
 		let mut to_remove = Vec::new();
 		for missing in no_stage.iter() {
-			if let Some(id) = missing.get_child_span_id() {
+			if let Some(id) = missing.child_span_id() {
 				if let Some(parent) = map.get(id) {
 					if parent.get_tag(STAGE_IDENTIFIER).is_some() {
 						let stage = extract_stage_from_span(parent)?.unwrap_or(Stage::NoStage);
@@ -325,6 +337,33 @@ impl Metrics {
 		Ok(())
 	}
 
+	fn try_resolve_missing<'a>(&self, trace: &TraceObject<'a>, span: &Span<'a>) -> Result<Candidate, Error> {
+		// first check if the span has anything
+		let mut stage = extract_stage_from_span(span)?;
+		let mut hash = extract_hash_from_span(span)?;
+
+		// first try the children
+		trace.recurse_children(span.span_id, |c| {
+			if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+				hash = extract_hash_from_span(c)?;
+			}
+
+			if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+				stage = extract_stage_from_span(c)?;
+			}
+
+			Ok(stage.is_some() && hash.is_some())
+		});
+
+		Ok(Candidate {
+			hash: hash.unwrap(),
+			operation: span.operation_name.to_string(),
+			start_time: span.start_time,
+			duration: span.duration,
+			stage: stage.unwrap(),
+		})
+	}
+
 	/// Clear memory of candidates
 	pub fn clear(&mut self) {
 		self.candidates.clear();
@@ -337,16 +376,19 @@ struct Candidate {
 	operation: String,
 	start_time: usize,
 	duration: f64,
+	stage: Stage,
 }
 
 impl Candidate {
-	fn from_other_hash<'a>(span: &'a Span, hash: CandidateHash) -> Self {
-		Candidate {
+	fn from_other_hash<'a>(span: &'a Span, hash: CandidateHash) -> Result<Self, Error> {
+		let stage = extract_stage_from_span(span)?.unwrap_or(Stage::NoStage);
+		Ok(Candidate {
 			hash,
+			stage,
 			operation: span.operation_name.to_string(),
 			start_time: span.start_time,
 			duration: span.duration,
-		}
+		})
 	}
 }
 
@@ -354,9 +396,10 @@ impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
 	type Error = Error;
 	fn try_from(span: &'a Span<'a>) -> Result<Option<Candidate>, Error> {
 		let hash = extract_hash_from_span(span)?;
-
+		let stage = extract_stage_from_span(span)?.unwrap_or(Stage::NoStage);
 		Ok(hash.map(|h| Candidate {
 			hash: h,
+			stage,
 			operation: span.operation_name.to_string(),
 			start_time: span.start_time,
 			duration: span.duration,
@@ -379,26 +422,6 @@ fn extract_hash_from_span(span: &Span) -> Result<Option<CandidateHash>, Error> {
 		Ok(None)
 	} else {
 		Ok(Some(hash))
-	}
-}
-
-/// Temporary structure to optimize fetching of specific spans
-/// HashMap of SpanId -> Span
-struct SpanMap<'a> {
-	spans: HashMap<&'a str, &'a Span<'a>>,
-}
-
-impl<'a> SpanMap<'a> {
-	fn new(spans: &'a [&'a Span<'a>]) -> Self {
-		let mut map = HashMap::new();
-		for span in spans {
-			map.insert(span.span_id, *span);
-		}
-		Self { spans: map }
-	}
-
-	fn get(&self, id: &'a str) -> Option<&'a Span<'a>> {
-		self.spans.get(id).map(|s| *s)
 	}
 }
 

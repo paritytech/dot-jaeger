@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
-use serde::{Deserialize, Serialize};
+use anyhow::Error;
+use serde::{de::Deserializer, Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// RPC Primitives
@@ -37,11 +38,41 @@ impl<T> RpcResponse<T> {
 pub struct TraceObject<'a> {
 	#[serde(rename = "traceID")]
 	trace_id: &'a str,
-	#[serde(borrow)]
-	pub spans: Vec<Span<'a>>,
+	#[serde(borrow, deserialize_with = "deserialize_vec_as_hashmap")]
+	pub spans: HashMap<&'a str, Span<'a>>,
 	#[serde(borrow)]
 	processes: HashMap<&'a str, Process<'a>>,
 	warnings: Option<Vec<&'a str>>,
+}
+
+fn deserialize_vec_as_hashmap<'de, D>(deserializer: D) -> Result<HashMap<&'de str, Span<'de>>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let mut map = HashMap::new();
+	for item in Vec::<Span<'de>>::deserialize(deserializer)? {
+		map.insert(item.span_id, item);
+	}
+	Ok(map)
+}
+
+impl<'a> TraceObject<'a> {
+	fn find_child(&self, id: &'a str) -> Option<&'a Span> {
+		self.spans.values().find(|s| s.child_span_id() == Some(id))
+	}
+
+	// Recurse through a span's children, executing the predicate `fun` when a child is found.
+	pub fn recurse_children<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
+	where
+		F: FnMut(&'a Span<'a>) -> Result<bool, Error>,
+	{
+		if let Some(c) = self.find_child(id) {
+			if !fun(c)? {
+				self.recurse_children(c.span_id, fun)?;
+			}
+		}
+		Ok(())
+	}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -71,7 +102,7 @@ impl<'a> Span<'a> {
 		self.tags.iter().find(|t| t.key == key)
 	}
 
-	pub fn get_child_span_id(&self) -> Option<&'a str> {
+	pub fn child_span_id(&self) -> Option<&'a str> {
 		let child = self.references.iter().find(|r| r.ref_type == "CHILD_OF");
 		child.map(|c| c.span_id)
 	}
