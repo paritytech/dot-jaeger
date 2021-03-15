@@ -223,14 +223,14 @@ impl Metrics {
 	fn collect_candidates<'a>(&mut self, trace: &'a TraceObject<'a>) -> Result<(), Error> {
 		for span in trace.spans.values() {
 			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
-				if let Some(c) = self.try_resolve_missing(trace, span)? {
-					self.insert_candidate(c)?;
-				}
+				continue;
 			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
+				log::trace!("Missing Hash, resolving..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
 					self.insert_candidate(c)?;
 				}
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
+				log::trace!("Missing Stage, resolving..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
 					self.insert_candidate(c)?;
 				}
