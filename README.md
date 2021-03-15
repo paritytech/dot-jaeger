@@ -2,6 +2,7 @@
 
 service for visualizing and collecting traces from Parachains.
 
+![Screenie](https://i.imgur.com/fdcqDjm.png)
 
 ## Guide
 - Make sure you are on the Parity VPN if you plan to use that Jaeger UI Endpoint.
