@@ -55,6 +55,9 @@ pub struct Trace {
 	#[argh(option)]
 	/// the hex string ID of the trace to get. Example: --id 3c58a09870e2dced
 	pub id: String,
+	#[argh(switch)]
+	/// pretty print the JSON.
+	pretty_print: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
