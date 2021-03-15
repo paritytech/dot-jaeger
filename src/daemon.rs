@@ -252,7 +252,7 @@ impl Metrics {
 					});
 				}
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
-				log::trace!("Missing Stage, resolving..");
+				log::trace!("Missing Stage, trying to resolve..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
 					self.insert_candidate(c);
 				}
