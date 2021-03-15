@@ -17,7 +17,7 @@
 use anyhow::Error;
 use argh::FromArgs;
 
-use crate::{api::JaegerApi, daemon::PrometheusDaemon};
+use crate::{api::JaegerApi, daemon::PrometheusDaemon, primitives::TraceObject};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Jaeger Trace CLI App
@@ -84,10 +84,17 @@ pub struct Services {
 pub struct Daemon {
 	#[argh(option)]
 	/// frequency to update jaeger metrics in milliseconds.
-	frequency: Option<usize>,
+	pub frequency: Option<usize>,
 	#[argh(option, default = "default_port()")]
 	/// port to expose prometheus metrics at. Default 9186
-	port: usize,
+	pub port: usize,
+	/// fallback to recursing through parent traces if the current span has one of a candidate hash or stage, but not the other.
+	#[argh(switch)]
+	pub recurse_parents: bool,
+	#[argh(switch)]
+	/// fallback to recursing through parent traces if the current span has one of a candidate hash or stage but not the other.
+	/// Recursing children is slower than recursing parents.
+	pub recurse_children: bool,
 }
 
 const fn default_port() -> usize {
@@ -110,10 +117,11 @@ pub fn app() -> Result<(), Error> {
 fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.traces(app)?;
+	let json = api.into_json::<TraceObject>(&data)?;
 	if app.pretty_print {
-		println!("{}", serde_json::to_string_pretty(&data)?);
+		println!("{}", serde_json::to_string_pretty(&json)?);
 	} else {
-		println!("{}", serde_json::to_string(&data)?);
+		println!("{}", serde_json::to_string(&json)?);
 	}
 	Ok(())
 }
@@ -122,10 +130,11 @@ fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.trace(app, &trace.id)?;
+	let json = api.into_json::<TraceObject>(&data)?;
 	if app.pretty_print {
-		println!("{}", serde_json::to_string_pretty(&data)?);
+		println!("{}", serde_json::to_string_pretty(&json)?);
 	} else {
-		println!("{}", serde_json::to_string(&data)?);
+		println!("{}", serde_json::to_string(&json)?);
 	}
 
 	Ok(())
@@ -145,7 +154,7 @@ fn services(app: &App, _: &Services) -> Result<(), Error> {
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	println!("Launching Jaeger Collector daemon!");
-	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app);
+	let mut daemon = PrometheusDaemon::new(daemon, &api, app)?;
 	daemon.start()?;
 	Ok(())
 }

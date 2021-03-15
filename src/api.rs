@@ -16,11 +16,9 @@
 
 //! Rust Code wrapping Jaeger-Agent HTTP API
 
-use crate::{
-	cli::App,
-	primitives::{RpcResponse, TraceObject},
-};
+use crate::{cli::App, primitives::RpcResponse};
 use anyhow::Error;
+use serde::Deserialize;
 use std::fmt;
 
 /// Endpoints:
@@ -63,26 +61,31 @@ pub struct JaegerApi<'a> {
 }
 
 impl<'a> JaegerApi<'a> {
+	/// Instantiate a new API Object
 	pub fn new(url: &'a str) -> Self {
 		Self { url }
 	}
 
 	/// Get many traces belonging to one service from this Jaeger Agent.
-	pub fn traces(&self, app: &App) -> Result<Vec<TraceObject>, Error> {
+	pub fn traces(&self, app: &App) -> Result<String, Error> {
 		let req = ureq::get(&endpoint(self.url, Endpoint::Traces));
 		let req = build_parameters(req, app);
-		let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
-		Ok(response.consume())
+		let response = req.call()?.into_string()?;
+		Ok(response)
+		// let response: RpcResponse<TraceObject<'a>> = serde_json::from_str(&response)?;
+		//Ok(response.consume())
 	}
 
 	/// Get a single trace from the Jaeger Agent
-	pub fn trace(&self, app: &App, id: &str) -> Result<TraceObject, Error> {
+	pub fn trace(&self, app: &App, id: &str) -> Result<String, Error> {
 		// /api/traces/{trace_id}
 		let req = ureq::get(&format!("{}/{}", &endpoint(self.url, Endpoint::Traces), id.to_string()));
 		let req = build_parameters(req, app);
-		let response: RpcResponse<TraceObject> = req.call()?.into_json()?;
+		let response = req.call()?.into_string()?;
+		// let response: RpcResponse<TraceObject<'a>> = serde_json::from_str(&response)?;
+		Ok(response)
 		// if the response is succesful we should have exactly 1 item
-		Ok(response.consume().remove(0))
+		// Ok(response.consume().remove(0))
 	}
 
 	/// Query the services that reporting to this Jaeger Agent
@@ -92,6 +95,14 @@ impl<'a> JaegerApi<'a> {
 		let response: RpcResponse<String> = req.call()?.into_json()?;
 		Ok(response.consume())
 	}
+
+	pub fn into_json<'b, T>(&self, response: &'b str) -> Result<Vec<T>, Error>
+	where
+		T: Deserialize<'b>,
+	{
+		let response: RpcResponse<T> = serde_json::from_str(&response)?;
+		Ok(response.consume())
+	}
 }
 
 fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
@@ -99,7 +110,7 @@ fn build_parameters(req: ureq::Request, app: &App) -> ureq::Request {
 }
 
 fn endpoint(url: &str, endpoint: Endpoint) -> String {
-	format!("{}/{}", url, endpoint)
+	format!("{}{}", url, endpoint)
 }
 
 // TODO: Params to Implement
