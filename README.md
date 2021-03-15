@@ -24,6 +24,7 @@ This starts Prometheus on port 9090 and grafana on port 3000. The Grafana dashbo
 
 Data should start showing up. Grafana update interval can be modified in the top right
 
+[Here's a Quick ASCIICast of the dot-jaeger and docker setpu process](https://asciinema.org/a/KOGwM7Gm04DPINy4ra6BAdoZP)
 
 Recommended number of traces at once: 5-20. Asking for too many traces from the JaegerUI both requests large amounts of data (potentially slowing down any other services) and makes dot-jaeger slower as it has to potentially sort the parent-child relationship of each span, although this can be configured with `--recurse-children` and `recurse-parents` CLI options.
 
