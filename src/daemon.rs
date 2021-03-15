@@ -36,7 +36,7 @@ use std::{
 	},
 	time::Duration,
 };
-
+pub const MAX_RECURSION_DEPTH: usize = 10;
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
 pub const STAGE_IDENTIFIER: &str = "candidate-stage";
 /// Default for Histogram Buckets.
@@ -205,9 +205,11 @@ impl Metrics {
 	}
 
 	fn update<'a>(&mut self, traces: Vec<TraceObject<'a>>) -> Result<(), Error> {
+		let now = std::time::Instant::now();
 		for trace in traces.iter() {
 			self.collect_candidates(&trace)?;
 		}
+		println!("Took {:?} to collect candidates", now.elapsed());
 
 		self.update_metrics()?;
 
@@ -240,6 +242,7 @@ impl Metrics {
 	}
 
 	fn update_metrics<'a>(&mut self) -> Result<(), Error> {
+		let now = std::time::Instant::now();
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
 			if let Some(c) = self.candidates.get(&stage) {
@@ -250,6 +253,8 @@ impl Metrics {
 			}
 		}
 
+		println!("Took {:?} to update histograms", now.elapsed());
+		let now = std::time::Instant::now();
 		// # Candidates in Each Stage
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
 			let count = self
@@ -260,9 +265,12 @@ impl Metrics {
 				gauge.set(c as f64);
 			}
 		}
+		println!("Took {:?} to update candidates in each stage", now.elapsed());
+		let now = std::time::Instant::now();
 		// Total Number of Candidates
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
 		self.parachain_total_candidates.set(count as f64);
+		println!("Took {:?} to update total number of candidates", now.elapsed());
 
 		Ok(())
 	}
@@ -292,8 +300,10 @@ impl Metrics {
 		let mut stage = extract_stage_from_span(span)?;
 		let mut hash = extract_hash_from_span(span)?;
 
+		let mut counter = 0;
 		// first try the children
 		trace.recurse_children(span.span_id, |c| {
+			counter += 1;
 			if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
 				hash = extract_hash_from_span(c)?;
 			}
@@ -302,19 +312,21 @@ impl Metrics {
 				stage = extract_stage_from_span(c)?;
 			}
 
-			Ok(stage.is_some() && hash.is_some())
+			Ok((stage.is_some() && hash.is_some()) || counter == MAX_RECURSION_DEPTH)
 		})?;
 
+		counter = 0;
 		// only try the parents if that's something we want to do.
 		if self.recurse_parents && (stage.is_none() || hash.is_none()) {
 			trace.recurse_parents(span.span_id, |c| {
+				counter += 1;
 				if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
 					hash = extract_hash_from_span(c)?;
 				}
 				if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
 					stage = extract_stage_from_span(c)?;
 				}
-				Ok(stage.is_some() && hash.is_some())
+				Ok((stage.is_some() && hash.is_some()) || counter == MAX_RECURSION_DEPTH)
 			})?;
 		}
 
