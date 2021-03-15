@@ -53,7 +53,7 @@ enum TraceAction {
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "trace")]
-/// Use when observing only one trace
+/// Get a single trace as JSON.
 pub struct Trace {
 	#[argh(option)]
 	/// the hex string ID of the trace to get. Example: --id 3c58a09870e2dced
@@ -62,7 +62,7 @@ pub struct Trace {
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "traces")]
-/// Use when observing many traces
+/// Get many traces as JSON
 pub struct AllTraces {
 	#[argh(option)] // default is no filter
 	/// filter these Traces with Regex
