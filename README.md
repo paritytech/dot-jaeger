@@ -69,23 +69,6 @@ Options:
                     span has one of a candidate hash or stage but not the other.
                     Recursing children is slower than recursing parents.
   --help            display usage information
-
-
-Usage: dot-jaeger daemon [--frequency <frequency>] [--port <port>] [--recurse-parents] [--recurse-children]
-
-Daemonize Jaeger Trace collection to run at some interval
-
-Options:
-  --frequency       frequency to update jaeger metrics in milliseconds.
-  --port            port to expose prometheus metrics at. Default 9186
-  --recurse-parents fallback to recursing through parent traces if the current
-                    span has one of a candidate hash or stage, but not the
-                    other.
-  --recurse-children
-                    fallback to recursing through parent traces if the current
-                    span has on of a candidate hash or stage but not the other.
-                    Recursing children is slower than recursing parents.
-  --help            display usage information
 ```
 
 
