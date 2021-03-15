@@ -3,16 +3,25 @@
 service for visualizing and collecting traces from Parachains.
 
 
-start the external services (Prometheus + Grafana) with
+## Guide
+- Make sure you are on the Parity VPN if you plan to use that Jaeger UI Endpoint.
+
+- Start the external services (Prometheus + Grafana) with
 ```
 docker-compose up
 ```
+This starts Prometheus on port 9090 and grafana on port 3000. The Grafana dashboard can be accessed from localhost:3000, with the default login being user: `admin` password: `admin`
 
+- Start dot-jaeger in `daemon` mode with chosen arguments. The `help` command may be used for quick docs on the core app or any of the subcommands.
+
+- Login to local grafana instance, and add `dot-jaeger` as a Prometheus source.
+  - URL: `localhost:9090`
+  - Access: Browser
 
 
 ## Usage
 
-```
+``` sh
 Usage: dot-jaeger [--service <service>] [--url <url>] [--limit <limit>] [--pretty-print] [--lookback <lookback>] <command> [<args>]
 
 Jaeger Trace CLI App
@@ -33,6 +42,44 @@ Commands:
   services          List of services reporting to the Jaeger Agent
   daemon            Daemonize Jaeger Trace collection to run at some interval
 ```
+
+### Daemon
+
+```sh
+Usage: dot-jaeger daemon [--frequency <frequency>] [--port <port>] [--recurse-parents] [--recurse-children]
+
+Daemonize Jaeger Trace collection to run at some interval
+
+Options:
+  --frequency       frequency to update jaeger metrics in milliseconds.
+  --port            port to expose prometheus metrics at. Default 9186
+  --recurse-parents fallback to recursing through parent traces if the current
+                    span has one of a candidate hash or stage, but not the
+                    other.
+  --recurse-children
+                    fallback to recursing through parent traces if the current
+                    span has on of a candidate hash or stage but not the other.
+                    Recursing children is slower than recursing parents.
+  --help            display usage information
+
+
+Usage: dot-jaeger daemon [--frequency <frequency>] [--port <port>] [--recurse-parents] [--recurse-children]
+
+Daemonize Jaeger Trace collection to run at some interval
+
+Options:
+  --frequency       frequency to update jaeger metrics in milliseconds.
+  --port            port to expose prometheus metrics at. Default 9186
+  --recurse-parents fallback to recursing through parent traces if the current
+                    span has one of a candidate hash or stage, but not the
+                    other.
+  --recurse-children
+                    fallback to recursing through parent traces if the current
+                    span has on of a candidate hash or stage but not the other.
+                    Recursing children is slower than recursing parents.
+  --help            display usage information
+```
+
 
 #### Example
 ./dot-jaeger --url "http://10.14.0.22:16686" --limit 10 --service polkadot-rococo-3-validator-5 daemon --recurse-children
