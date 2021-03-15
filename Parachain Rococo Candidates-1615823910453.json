@@ -77,7 +77,7 @@
           "expr": "histogram_quantile(0.95, sum(rate(stage_0_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
-          "legendFormat": "Stage 0 (no hash)",
+          "legendFormat": "Stage 0 (no stage)",
           "refId": "A"
         },
         {
@@ -1061,5 +1061,5 @@
   "timezone": "",
   "title": "Parachain Rococo Candidates",
   "uid": "jEVpFpyMk",
-  "version": 14
+  "version": 15
 }

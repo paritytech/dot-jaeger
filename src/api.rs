@@ -32,7 +32,7 @@ use std::fmt;
 /// `/api/traces/{TraceId}`
 ///     return spans for this TraceId
 /// `/api/services`
-/// 	- returns services reporting to the jaeger agent
+///     returns services reporting to the jaeger agent
 pub const TRACES: &str = "/api/traces";
 
 /// Returns list of services on this Jaeger agent
@@ -96,7 +96,7 @@ impl<'a> JaegerApi<'a> {
 		Ok(response.consume())
 	}
 
-	pub fn into_json<'b, T>(&self, response: &'b str) -> Result<Vec<T>, Error>
+	pub fn to_json<'b, T>(&self, response: &'b str) -> Result<Vec<T>, Error>
 	where
 		T: Deserialize<'b>,
 	{

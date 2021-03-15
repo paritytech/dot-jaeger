@@ -31,9 +31,6 @@ pub struct App {
 	#[argh(option)]
 	/// maximum number of traces to return.
 	pub limit: Option<usize>,
-	#[argh(switch)]
-	/// pretty print result
-	pub pretty_print: bool,
 	#[argh(option)]
 	/// specify how far back in time to look for traces. In format: `1h`, `1d`
 	pub lookback: Option<String>,
@@ -53,29 +50,32 @@ enum TraceAction {
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "trace")]
-/// Use when observing only one trace
+/// Get a single trace as JSON.
 pub struct Trace {
 	#[argh(option)]
 	/// the hex string ID of the trace to get. Example: --id 3c58a09870e2dced
 	pub id: String,
+	#[argh(switch)]
+	/// pretty print the JSON.
+	pretty_print: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "traces")]
-/// Use when observing many traces
+/// Get many traces as JSON
 pub struct AllTraces {
-	#[argh(option)] // default is no filter
-	/// filter these Traces with Regex
-	filter: Option<String>,
+	#[argh(switch)]
+	/// pretty print the JSON
+	pub pretty_print: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand, name = "services")]
 /// List of services reporting to the Jaeger Agent
 pub struct Services {
-	#[argh(option)] // default is no filter
-	/// regex to apply and filter results
-	filter: Option<String>,
+	#[argh(switch)]
+	/// pretty print the JSON
+	pretty_print: bool,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -114,11 +114,11 @@ pub fn app() -> Result<(), Error> {
 }
 
 /// Return All Traces.
-fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
+fn traces(app: &App, traces: &AllTraces) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.traces(app)?;
-	let json = api.into_json::<TraceObject>(&data)?;
-	if app.pretty_print {
+	let json = api.to_json::<TraceObject>(&data)?;
+	if traces.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&json)?);
 	} else {
 		println!("{}", serde_json::to_string(&json)?);
@@ -130,8 +130,8 @@ fn traces(app: &App, _: &AllTraces) -> Result<(), Error> {
 fn trace(app: &App, trace: &Trace) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.trace(app, &trace.id)?;
-	let json = api.into_json::<TraceObject>(&data)?;
-	if app.pretty_print {
+	let json = api.to_json::<TraceObject>(&data)?;
+	if trace.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&json)?);
 	} else {
 		println!("{}", serde_json::to_string(&json)?);
