@@ -54,7 +54,7 @@ Commands:
 ### Daemon
 
 ```sh
-Usage: dot-jaeger daemon [--frequency <frequency>] [--port <port>] [--recurse-parents] [--recurse-children]
+Usage: dot-jaeger daemon [--frequency <frequency>] [--port <port>] [--recurse-parents] [--recurse-children] [--include-unknown]
 
 Daemonize Jaeger Trace collection to run at some interval
 
@@ -68,8 +68,11 @@ Options:
                     fallback to recursing through parent traces if the current
                     span has one of a candidate hash or stage but not the other.
                     Recursing children is slower than recursing parents.
+  --include-unknown include candidates that have a stage but a candidate-hash
+                    could not be found.
   --help            display usage information
 ```
+
 
 
 #### Example
