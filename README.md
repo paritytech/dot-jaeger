@@ -25,7 +25,7 @@ This starts Prometheus on port 9090 and grafana on port 3000. The Grafana dashbo
 Data should start showing up. Grafana update interval can be modified in the top right
 
 
-Recommended number of traces at once: 5-20. Asking for too many traces from the JaegerUI on Parity VPN both requests large amounts of data over the VPN (potentially slowing down any other services) and makes dot-jaeger slower as it has to potentially sort the parent-child relationship of each span, although this can be configured with `--recurse-children` and `recurse-parents` CLI options.
+Recommended number of traces at once: 5-20. Asking for too many traces from the JaegerUI both requests large amounts of data (potentially slowing down any other services) and makes dot-jaeger slower as it has to potentially sort the parent-child relationship of each span, although this can be configured with `--recurse-children` and `recurse-parents` CLI options.
 
 ## Usage
 
