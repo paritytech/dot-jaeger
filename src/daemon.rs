@@ -119,6 +119,7 @@ struct Metrics {
 	parachain_stage_gauges: [Gauge; 9],
 	parachain_stage_histograms: [Histogram; 9],
 	recurse_parents: bool,
+	recurse_children: bool,
 }
 
 impl Metrics {
@@ -201,6 +202,7 @@ impl Metrics {
 			parachain_stage_gauges,
 			parachain_stage_histograms,
 			recurse_parents: daemon.recurse_parents,
+			recurse_children: daemon.recurse_children,
 		})
 	}
 
@@ -227,12 +229,12 @@ impl Metrics {
 			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
 				log::trace!("Missing Hash, resolving..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
-					self.insert_candidate(c)?;
+					self.insert_candidate(c);
 				}
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
 				log::trace!("Missing Stage, resolving..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
-					self.insert_candidate(c)?;
+					self.insert_candidate(c);
 				}
 			} else {
 				self.insert(span)?;
@@ -241,7 +243,7 @@ impl Metrics {
 		Ok(())
 	}
 
-	fn update_metrics<'a>(&mut self) -> Result<(), Error> {
+	fn update_metrics(&mut self) -> Result<(), Error> {
 		let now = std::time::Instant::now();
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
@@ -260,7 +262,7 @@ impl Metrics {
 			let count = self
 				.candidates
 				.get(&Stage::try_from(i)?)
-				.map(|c| c.iter().unique_by(|c| c.hash).collect::<Vec<_>>().len());
+				.map(|c| c.iter().unique_by(|c| c.hash).count());
 			if let Some(c) = count {
 				gauge.set(c as f64);
 			}
@@ -268,7 +270,7 @@ impl Metrics {
 		println!("Took {:?} to update candidates in each stage", now.elapsed());
 		let now = std::time::Instant::now();
 		// Total Number of Candidates
-		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).collect::<Vec<_>>().len();
+		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).count();
 		self.parachain_total_candidates.set(count as f64);
 		println!("Took {:?} to update total number of candidates", now.elapsed());
 
@@ -278,18 +280,17 @@ impl Metrics {
 	/// Inserts an item into the Candidate List.
 	pub fn insert<'a>(&mut self, span: &'a Span<'a>) -> Result<(), Error> {
 		if let Some(c) = Option::<Candidate>::try_from(span)? {
-			self.insert_candidate(c)?;
+			self.insert_candidate(c);
 		}
 		Ok(())
 	}
 
-	fn insert_candidate<'a>(&mut self, candidate: Candidate) -> Result<(), Error> {
+	fn insert_candidate<'a>(&mut self, candidate: Candidate) {
 		if let Some(v) = self.candidates.get_mut(&candidate.stage) {
 			v.push(candidate);
 		} else {
 			self.candidates.insert(candidate.stage.clone(), vec![candidate]);
 		}
-		Ok(())
 	}
 
 	/// Try to resolve a missing candidate hash or a missing stage by inspecting the children and parent spans.
@@ -301,19 +302,20 @@ impl Metrics {
 		let mut hash = extract_hash_from_span(span)?;
 
 		let mut counter = 0;
-		// first try the children
-		trace.recurse_children(span.span_id, |c| {
-			counter += 1;
-			if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
-				hash = extract_hash_from_span(c)?;
-			}
+		if self.recurse_children {
+			trace.recurse_children(span.span_id, |c| {
+				counter += 1;
+				if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+					hash = extract_hash_from_span(c)?;
+				}
 
-			if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
-				stage = extract_stage_from_span(c)?;
-			}
+				if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+					stage = extract_stage_from_span(c)?;
+				}
 
-			Ok((stage.is_some() && hash.is_some()) || counter == MAX_RECURSION_DEPTH)
-		})?;
+				Ok((stage.is_some() && hash.is_some()) || counter == MAX_RECURSION_DEPTH)
+			})?;
+		}
 
 		counter = 0;
 		// only try the parents if that's something we want to do.
