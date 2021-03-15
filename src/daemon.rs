@@ -258,7 +258,7 @@ impl Metrics {
 			}
 		}
 
-		println!("Took {:?} to update histograms", now.elapsed());
+		log::debug!("Took {:?} to update histograms", now.elapsed());
 		let now = std::time::Instant::now();
 		// # Candidates in Each Stage
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
