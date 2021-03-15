@@ -116,8 +116,8 @@ struct Metrics {
 	candidates: HashMap<Stage, Vec<Candidate>>,
 	parachain_total_candidates: Gauge,
 	// the `zero` stage signifies a candidate that has no stage associated
-	parachain_stage_gauges: [Gauge; 8],
-	parachain_stage_histograms: [Histogram; 8],
+	parachain_stage_gauges: [Gauge; 9],
+	parachain_stage_histograms: [Histogram; 9],
 	recurse_parents: bool,
 }
 
@@ -143,47 +143,54 @@ impl Metrics {
 				.expect("can not create gauge stage_6_candidates metric"),
 			register_gauge!("stage_7_candidates", "Total Candidates on Stage 7")
 				.expect("can not create gauge stage_7_candidates metric"),
+			register_gauge!("stage_8_candidates", "Total Candidates on Stage 8")
+				.expect("can not create gauge stage_8_candidates metric"),
 		];
 
 		let parachain_stage_histograms = [
 			register_histogram!(
 				"stage_0_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_1_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_2_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_3_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_4_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_5_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_6_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
 				"stage_7_duration",
-				"Distributions of the time it takes to transition between stages",
+				"Distributions of the time it takes for stage to complete",
+				HISTOGRAM_BUCKETS.to_vec()
+			)?,
+			register_histogram!(
+				"stage_8_duration",
+				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 		];
@@ -391,6 +398,7 @@ pub enum Stage {
 	AvailabilityDistribution = 5,
 	AvailabilityRecovery = 6,
 	BitfieldDistribution = 7,
+	ApprovalChecking = 8,
 	// Expand as needed, numbers should be ascending according to the stage
 	// through the inclusion pipeline, or according to the descriptions
 	// in [the path of a para chain block]
@@ -410,6 +418,7 @@ impl FromStr for Stage {
 			5 => Ok(Stage::AvailabilityDistribution),
 			6 => Ok(Stage::AvailabilityRecovery),
 			7 => Ok(Stage::BitfieldDistribution),
+			8 => Ok(Stage::ApprovalChecking),
 			_ => bail!(format!("stage {} does not exist", s)),
 		}
 	}
@@ -427,6 +436,7 @@ impl TryFrom<usize> for Stage {
 			5 => Ok(Stage::AvailabilityDistribution),
 			6 => Ok(Stage::AvailabilityRecovery),
 			7 => Ok(Stage::BitfieldDistribution),
+			8 => Ok(Stage::ApprovalChecking),
 			_ => bail!(format!("stage {} does not exist", num)),
 		}
 	}
