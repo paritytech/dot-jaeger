@@ -83,7 +83,7 @@ impl<'a> PrometheusDaemon<'a> {
 			self.metrics.clear();
 			let now = std::time::Instant::now();
 			let json = self.api.traces(self.app)?;
-			println!("API Call took {:?} seconds", now.elapsed());
+			log::debug!("API Call took {:?} seconds", now.elapsed());
 			if let Err(e) = self.collect_metrics(&json) {
 				log::error!("{}", e.to_string());
 				running.store(false, Ordering::SeqCst);
@@ -96,11 +96,11 @@ impl<'a> PrometheusDaemon<'a> {
 	fn collect_metrics(&mut self, json: &str) -> Result<(), Error> {
 		let now = std::time::Instant::now();
 		let traces = self.api.into_json::<TraceObject>(json)?;
-		println!("Deserialization took {:?}", now.elapsed());
-		println!("Total Traces: {}", traces.len());
+		log::debug!("Deserialization took {:?}", now.elapsed());
+		log::info!("Total Traces: {}", traces.len());
 		let now = std::time::Instant::now();
 		self.metrics.update(traces)?;
-		println!("Updating took {:?}", now.elapsed());
+		log::debug!("Updating took {:?}", now.elapsed());
 		Ok(())
 	}
 }
@@ -206,22 +206,24 @@ impl Metrics {
 		})
 	}
 
-	fn update<'a>(&mut self, traces: Vec<TraceObject<'a>>) -> Result<(), Error> {
+	/// Collect all spans into candidates, and update the Metrics
+	fn update(&mut self, traces: Vec<TraceObject<'_>>) -> Result<(), Error> {
 		let now = std::time::Instant::now();
 		for trace in traces.iter() {
 			self.collect_candidates(&trace)?;
 		}
-		println!("Took {:?} to collect candidates", now.elapsed());
+		log::debug!("Took {:?} to collect candidates", now.elapsed());
 
 		self.update_metrics()?;
 
-		println!(
+		log::info!(
 			"Candidates with a hash but without a stage: {:?}",
 			self.candidates.get(&Stage::NoStage).map(|c| c.len())
 		);
 		Ok(())
 	}
 
+	/// Finds which candidates have a Stage and Hash attached
 	fn collect_candidates<'a>(&mut self, trace: &'a TraceObject<'a>) -> Result<(), Error> {
 		for span in trace.spans.values() {
 			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
@@ -243,6 +245,7 @@ impl Metrics {
 		Ok(())
 	}
 
+	/// Updates the Prometheus metrics to reflect new trace data
 	fn update_metrics(&mut self) -> Result<(), Error> {
 		let now = std::time::Instant::now();
 		// Distribution of Candidate Stage deltas
@@ -267,12 +270,12 @@ impl Metrics {
 				gauge.set(c as f64);
 			}
 		}
-		println!("Took {:?} to update candidates in each stage", now.elapsed());
+		log::debug!("Took {:?} to update candidates in each stage", now.elapsed());
 		let now = std::time::Instant::now();
 		// Total Number of Candidates
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).count();
 		self.parachain_total_candidates.set(count as f64);
-		println!("Took {:?} to update total number of candidates", now.elapsed());
+		log::debug!("Took {:?} to update total number of candidates", now.elapsed());
 
 		Ok(())
 	}
@@ -285,11 +288,11 @@ impl Metrics {
 		Ok(())
 	}
 
-	fn insert_candidate<'a>(&mut self, candidate: Candidate) {
+	fn insert_candidate(&mut self, candidate: Candidate) {
 		if let Some(v) = self.candidates.get_mut(&candidate.stage) {
 			v.push(candidate);
 		} else {
-			self.candidates.insert(candidate.stage.clone(), vec![candidate]);
+			self.candidates.insert(candidate.stage, vec![candidate]);
 		}
 	}
 

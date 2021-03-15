@@ -74,6 +74,8 @@ impl<'a> TraceObject<'a> {
 	}
 
 	/// Recurse through a spans children, executing the predicate `fun` when a child is found.
+	/// Recursing children can be very slow, since every child span must be searched for in the span list,
+	/// since direct child-relationships are not included in the Jaeger Response.
 	pub fn recurse_children<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
 	where
 		F: FnMut(&'a Span<'a>) -> Result<bool, Error>,
@@ -123,10 +125,12 @@ pub struct Span<'a> {
 }
 
 impl<'a> Span<'a> {
+	/// get a tag under `key`
 	pub fn get_tag(&self, key: &str) -> Option<&'a Tag> {
 		self.tags.iter().find(|t| t.key == key)
 	}
 
+	/// Get the ID to the parent of this span.
 	pub fn parent_span_id(&self) -> Option<&'a str> {
 		let child = self.references.iter().find(|r| r.ref_type == "CHILD_OF");
 		child.map(|c| c.span_id)
