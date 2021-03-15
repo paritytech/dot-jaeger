@@ -28,8 +28,7 @@ use std::fmt;
 ///     limit: specify how many to return
 ///     service: Where did the trace originate
 ///     prettyPrint: Make JSON nice
-/// `/search` <-- have not gotten this to work
-/// `/api/traces/{TraceId}`
+/// `/search` <-- have not gotten this to work `/api/traces/{TraceId}`
 ///     return spans for this TraceId
 /// `/api/services`
 ///     returns services reporting to the jaeger agent
@@ -72,8 +71,6 @@ impl<'a> JaegerApi<'a> {
 		let req = build_parameters(req, app);
 		let response = req.call()?.into_string()?;
 		Ok(response)
-		// let response: RpcResponse<TraceObject<'a>> = serde_json::from_str(&response)?;
-		//Ok(response.consume())
 	}
 
 	/// Get a single trace from the Jaeger Agent
@@ -82,10 +79,7 @@ impl<'a> JaegerApi<'a> {
 		let req = ureq::get(&format!("{}/{}", &endpoint(self.url, Endpoint::Traces), id.to_string()));
 		let req = build_parameters(req, app);
 		let response = req.call()?.into_string()?;
-		// let response: RpcResponse<TraceObject<'a>> = serde_json::from_str(&response)?;
 		Ok(response)
-		// if the response is succesful we should have exactly 1 item
-		// Ok(response.consume().remove(0))
 	}
 
 	/// Query the services that reporting to this Jaeger Agent
@@ -113,10 +107,10 @@ fn endpoint(url: &str, endpoint: Endpoint) -> String {
 	format!("{}{}", url, endpoint)
 }
 
-// TODO: Params to Implement
+// Other possible parameters
+// operation
 // minDuration
 // maxDuration
-// operation
 // start <- Unix timestamp in microseconds (presumably for internal Jaeger Use)
 // end <- Unix timestamp in microseconds (presumably for internal Jaeger Use)
 pub struct ParamBuilder<'a> {
