@@ -18,6 +18,13 @@ This starts Prometheus on port 9090 and grafana on port 3000. The Grafana dashbo
   - URL: `localhost:9090`
   - Access: Browser
 
+- Import the Dashboard from the Repository named `Parachain Rococo Candidates-{{bunch of numbers}}`
+  - dashboard can be manipulated from grafana
+
+Data should start showing up. Grafana update interval can be modified in the top right
+
+
+Recommended number of traces at once: 5-20. Asking for too many traces from the JaegerUI on Parity VPN both requests large amounts of data over the VPN and makes dot-jaeger slower as it has to potentially sort the parent-child relationship of each span, although this can be configured with `--recurse-children` and `recurse-parents` CLI options.
 
 ## Usage
 
@@ -58,7 +65,7 @@ Options:
                     other.
   --recurse-children
                     fallback to recursing through parent traces if the current
-                    span has on of a candidate hash or stage but not the other.
+                    span has one of a candidate hash or stage but not the other.
                     Recursing children is slower than recursing parents.
   --help            display usage information
 
