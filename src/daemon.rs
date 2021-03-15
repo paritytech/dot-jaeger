@@ -18,7 +18,7 @@
 
 use crate::{
 	api::JaegerApi,
-	cli::App,
+	cli::{App, Daemon},
 	primitives::{Span, TraceObject},
 };
 use anyhow::{bail, Error};
@@ -53,7 +53,6 @@ pub const HISTOGRAM_BUCKETS: &[f64; 80] = &[
 ];
 
 pub type CandidateHash = [u8; 32];
-pub type SpanMap<'a> = HashMap<&'a str, Span<'a>>;
 
 pub struct PrometheusDaemon<'a> {
 	port: usize,
@@ -63,9 +62,9 @@ pub struct PrometheusDaemon<'a> {
 }
 
 impl<'a> PrometheusDaemon<'a> {
-	pub fn new(port: usize, api: &'a JaegerApi, app: &'a App) -> Result<Self, Error> {
-		let metrics = Metrics::new()?;
-		Ok(Self { port, api, app, metrics })
+	pub fn new(daemon: &'a Daemon, api: &'a JaegerApi, app: &'a App) -> Result<Self, Error> {
+		let metrics = Metrics::new(daemon)?;
+		Ok(Self { port: daemon.port, api, app, metrics })
 	}
 
 	pub fn start(&mut self) -> Result<(), Error> {
@@ -119,10 +118,11 @@ struct Metrics {
 	// the `zero` stage signifies a candidate that has no stage associated
 	parachain_stage_gauges: [Gauge; 8],
 	parachain_stage_histograms: [Histogram; 8],
+	recurse_parents: bool,
 }
 
 impl Metrics {
-	pub fn new() -> Result<Self, Error> {
+	pub fn new(daemon: &Daemon) -> Result<Self, Error> {
 		let parachain_total_candidates =
 			register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
 				.expect("can not create gauge parachain_total_candidates metric");
@@ -193,6 +193,7 @@ impl Metrics {
 			parachain_total_candidates,
 			parachain_stage_gauges,
 			parachain_stage_histograms,
+			recurse_parents: daemon.recurse_parents,
 		})
 	}
 
@@ -213,23 +214,21 @@ impl Metrics {
 	fn collect_candidates<'a>(&mut self, trace: &'a TraceObject<'a>) -> Result<(), Error> {
 		for span in trace.spans.values() {
 			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
-				let candidate = self.try_resolve_missing(trace, span)?;
-				self.insert_candidate(candidate)?;
+				if let Some(c) = self.try_resolve_missing(trace, span)? {
+					self.insert_candidate(c)?;
+				}
 			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
-				let candidate = self.try_resolve_missing(trace, span)?;
-				self.insert_candidate(candidate)?;
+				if let Some(c) = self.try_resolve_missing(trace, span)? {
+					self.insert_candidate(c)?;
+				}
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
-				let candidate = self.try_resolve_missing(trace, span)?;
-				self.insert_candidate(candidate)?;
+				if let Some(c) = self.try_resolve_missing(trace, span)? {
+					self.insert_candidate(c)?;
+				}
 			} else {
 				self.insert(span)?;
 			}
 		}
-
-		let now = std::time::Instant::now();
-		// self.try_resolve_missing_candidates(&trace.spans, &mut no_candidates)?;
-		// self.try_resolve_missing_stage(&trace.spans, &mut no_stage)?;
-		println!("Resolving missing candidates took {:?}", now.elapsed());
 		Ok(())
 	}
 
@@ -264,7 +263,7 @@ impl Metrics {
 	/// Inserts an item into the Candidate List.
 	pub fn insert<'a>(&mut self, span: &'a Span<'a>) -> Result<(), Error> {
 		if let Some(c) = Option::<Candidate>::try_from(span)? {
-			self.insert_candidate(c);
+			self.insert_candidate(c)?;
 		}
 		Ok(())
 	}
@@ -278,65 +277,10 @@ impl Metrics {
 		Ok(())
 	}
 
-	// Fallback in case some candidates are missing a candidate-hash but have a stage.
-	// checks if the parent span has a candidate-hash attached.
-	fn try_resolve_missing_candidates<'a>(
-		&mut self,
-		map: &SpanMap<'a>,
-		no_candidates: &mut Vec<&'a Span<'a>>,
-	) -> Result<(), Error> {
-		let mut to_remove = Vec::new();
-		for missing in no_candidates.iter() {
-			if let Some(id) = missing.child_span_id() {
-				if let Some(parent) = map.get(id) {
-					if parent.get_tag(HASH_IDENTIFIER).is_some() {
-						let stage = extract_stage_from_span(missing)?.unwrap_or(Stage::NoStage);
-						let hash = extract_hash_from_span(&parent)?.expect("Hash must exist because of tag check; qed");
-						let candidate = Candidate::from_other_hash(missing, hash)?;
-						if let Some(v) = self.candidates.get_mut(&stage) {
-							v.push(candidate)
-						} else {
-							self.candidates.insert(stage, vec![candidate]);
-						}
-						to_remove.push(missing.span_id);
-					}
-				}
-			}
-		}
-		no_candidates.retain(|x| to_remove.iter().any(|&r| r == x.span_id));
-		Ok(())
-	}
-
-	// Fallback for spans where some spans are missing a stage but have a candidate-hash
-	fn try_resolve_missing_stage<'a>(
-		&mut self,
-		map: &SpanMap<'a>,
-		no_stage: &mut Vec<&'a Span<'a>>,
-	) -> Result<(), Error> {
-		let mut to_remove = Vec::new();
-		for missing in no_stage.iter() {
-			if let Some(id) = missing.child_span_id() {
-				if let Some(parent) = map.get(id) {
-					if parent.get_tag(STAGE_IDENTIFIER).is_some() {
-						let stage = extract_stage_from_span(parent)?.unwrap_or(Stage::NoStage);
-						println!("Found Stage!: {}", stage);
-						if let Some(candidate) = Option::<Candidate>::try_from(*missing)? {
-							if let Some(v) = self.candidates.get_mut(&stage) {
-								v.push(candidate);
-							} else {
-								self.candidates.insert(stage, vec![candidate]);
-							}
-							to_remove.push(missing.span_id);
-						}
-					}
-				}
-			}
-		}
-		no_stage.retain(|x| to_remove.iter().any(|&r| r == x.span_id));
-		Ok(())
-	}
-
-	fn try_resolve_missing<'a>(&self, trace: &TraceObject<'a>, span: &Span<'a>) -> Result<Candidate, Error> {
+	/// Try to resolve a missing candidate hash or a missing stage by inspecting the children and parent spans.
+	/// If a no candidate hash is not found, then `None` will be returned.
+	/// If no stage is found but the hash exists, then the stage will be set to `NoStage`.
+	fn try_resolve_missing<'a>(&self, trace: &TraceObject<'a>, span: &Span<'a>) -> Result<Option<Candidate>, Error> {
 		// first check if the span has anything
 		let mut stage = extract_stage_from_span(span)?;
 		let mut hash = extract_hash_from_span(span)?;
@@ -352,15 +296,33 @@ impl Metrics {
 			}
 
 			Ok(stage.is_some() && hash.is_some())
-		});
+		})?;
 
-		Ok(Candidate {
-			hash: hash.unwrap(),
-			operation: span.operation_name.to_string(),
-			start_time: span.start_time,
-			duration: span.duration,
-			stage: stage.unwrap(),
+		// only try the parents if that's something we want to do.
+		if self.recurse_parents && (stage.is_none() || hash.is_none()) {
+			trace.recurse_parents(span.span_id, |c| {
+				if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+					hash = extract_hash_from_span(c)?;
+				}
+				if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+					stage = extract_stage_from_span(c)?;
+				}
+				Ok(stage.is_some() && hash.is_some())
+			})?;
+		}
+
+		let stage = stage.unwrap_or(Stage::NoStage);
+
+		hash.map(|h| {
+			Ok(Candidate {
+				hash: h,
+				operation: span.operation_name.to_string(),
+				start_time: span.start_time,
+				duration: span.duration,
+				stage,
+			})
 		})
+		.transpose()
 	}
 
 	/// Clear memory of candidates
@@ -376,19 +338,6 @@ struct Candidate {
 	start_time: usize,
 	duration: f64,
 	stage: Stage,
-}
-
-impl Candidate {
-	fn from_other_hash<'a>(span: &'a Span, hash: CandidateHash) -> Result<Self, Error> {
-		let stage = extract_stage_from_span(span)?.unwrap_or(Stage::NoStage);
-		Ok(Candidate {
-			hash,
-			stage,
-			operation: span.operation_name.to_string(),
-			start_time: span.start_time,
-			duration: span.duration,
-		})
-	}
 }
 
 impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {

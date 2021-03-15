@@ -57,11 +57,23 @@ where
 }
 
 impl<'a> TraceObject<'a> {
+	/// Finds a Span where `id` is listed as the child of another span.
 	fn find_child(&self, id: &'a str) -> Option<&'a Span> {
-		self.spans.values().find(|s| s.child_span_id() == Some(id))
+		self.spans.values().find(|s| s.parent_span_id() == Some(id))
 	}
 
-	// Recurse through a span's children, executing the predicate `fun` when a child is found.
+	/// Gets a span that corresponds to the parent of the given id.
+	fn get_parent(&self, id: &'a str) -> Option<&'a Span> {
+		self.spans
+			.get(id)
+			.map(|s| {
+				let parent_span = s.parent_span_id()?;
+				self.spans.get(parent_span)
+			})
+			.flatten()
+	}
+
+	/// Recurse through a spans children, executing the predicate `fun` when a child is found.
 	pub fn recurse_children<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
 	where
 		F: FnMut(&'a Span<'a>) -> Result<bool, Error>,
@@ -69,6 +81,19 @@ impl<'a> TraceObject<'a> {
 		if let Some(c) = self.find_child(id) {
 			if !fun(c)? {
 				self.recurse_children(c.span_id, fun)?;
+			}
+		}
+		Ok(())
+	}
+
+	/// Recurse through a spans parents, applying the predicate `fun`.
+	pub fn recurse_parents<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
+	where
+		F: FnMut(&'a Span<'a>) -> Result<bool, Error>,
+	{
+		if let Some(c) = self.get_parent(id) {
+			if !fun(c)? && c.parent_span_id().is_some() {
+				self.recurse_parents(c.span_id, fun)?;
 			}
 		}
 		Ok(())
@@ -102,7 +127,7 @@ impl<'a> Span<'a> {
 		self.tags.iter().find(|t| t.key == key)
 	}
 
-	pub fn child_span_id(&self) -> Option<&'a str> {
+	pub fn parent_span_id(&self) -> Option<&'a str> {
 		let child = self.references.iter().find(|r| r.ref_type == "CHILD_OF");
 		child.map(|c| c.span_id)
 	}

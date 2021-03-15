@@ -84,10 +84,13 @@ pub struct Services {
 pub struct Daemon {
 	#[argh(option)]
 	/// frequency to update jaeger metrics in milliseconds.
-	frequency: Option<usize>,
+	pub frequency: Option<usize>,
 	#[argh(option, default = "default_port()")]
 	/// port to expose prometheus metrics at. Default 9186
-	port: usize,
+	pub port: usize,
+	/// fallback to recursing through parent traces if the current span has one of a candidate hash or stage, but not the other.
+	#[argh(switch)]
+	pub recurse_parents: bool,
 }
 
 const fn default_port() -> usize {
@@ -147,7 +150,7 @@ fn services(app: &App, _: &Services) -> Result<(), Error> {
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	println!("Launching Jaeger Collector daemon!");
-	let mut daemon = PrometheusDaemon::new(daemon.port, &api, app)?;
+	let mut daemon = PrometheusDaemon::new(daemon, &api, app)?;
 	daemon.start()?;
 	Ok(())
 }
