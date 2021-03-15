@@ -95,6 +95,9 @@ pub struct Daemon {
 	/// fallback to recursing through parent traces if the current span has one of a candidate hash or stage but not the other.
 	/// Recursing children is slower than recursing parents.
 	pub recurse_children: bool,
+	#[argh(switch)]
+	/// include candidates that have a stage but a candidate-hash could not be found.
+	pub include_unknown: bool,
 }
 
 const fn default_port() -> usize {

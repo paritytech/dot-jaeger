@@ -95,7 +95,7 @@ impl<'a> PrometheusDaemon<'a> {
 
 	fn collect_metrics(&mut self, json: &str) -> Result<(), Error> {
 		let now = std::time::Instant::now();
-		let traces = self.api.into_json::<TraceObject>(json)?;
+		let traces = self.api.to_json::<TraceObject>(json)?;
 		log::debug!("Deserialization took {:?}", now.elapsed());
 		log::info!("Total Traces: {}", traces.len());
 		let now = std::time::Instant::now();
@@ -120,6 +120,7 @@ struct Metrics {
 	parachain_stage_histograms: [Histogram; 9],
 	recurse_parents: bool,
 	recurse_children: bool,
+	include_unknown: bool,
 }
 
 impl Metrics {
@@ -203,6 +204,7 @@ impl Metrics {
 			parachain_stage_histograms,
 			recurse_parents: daemon.recurse_parents,
 			recurse_children: daemon.recurse_children,
+			include_unknown: daemon.include_unknown,
 		})
 	}
 
@@ -220,6 +222,13 @@ impl Metrics {
 			"Candidates with a hash but without a stage: {:?}",
 			self.candidates.get(&Stage::NoStage).map(|c| c.len())
 		);
+
+		if self.include_unknown {
+			log::info!(
+				"Candidates without a hash but with a stage: {}",
+				self.candidates.values().flatten().filter(|c| c.hash.is_none()).count()
+			);
+		}
 		Ok(())
 	}
 
@@ -229,12 +238,21 @@ impl Metrics {
 			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
 				continue;
 			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
-				log::trace!("Missing Hash, resolving..");
+				log::trace!("Missing Hash, trying to resolve..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
 					self.insert_candidate(c);
+				} else if self.include_unknown {
+					let stage = extract_stage_from_span(span)?.expect("Stage must exist because of if check");
+					self.insert_candidate(Candidate {
+						hash: None,
+						operation: span.operation_name.to_string(),
+						start_time: span.start_time,
+						duration: span.duration,
+						stage,
+					});
 				}
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
-				log::trace!("Missing Stage, resolving..");
+				log::trace!("Missing Stage, trying to resolve..");
 				if let Some(c) = self.try_resolve_missing(trace, span)? {
 					self.insert_candidate(c);
 				}
@@ -251,9 +269,15 @@ impl Metrics {
 		// Distribution of Candidate Stage deltas
 		for stage in self.candidates.keys() {
 			if let Some(c) = self.candidates.get(&stage) {
-				for candidate in c.iter() {
+				for candidate in c.iter().filter(|c| c.hash.is_some()).unique_by(|c| c.hash) {
 					// Jaeger stores durations in microseconds. We divide by 1000 to get milliseconds.
 					self.parachain_stage_histograms[*stage as usize].observe(candidate.duration / 1000f64)
+				}
+				// include candidates without a hash if enabled
+				if self.include_unknown {
+					for candidate in c.iter().filter(|c| c.hash.is_none()) {
+						self.parachain_stage_histograms[*stage as usize].observe(candidate.duration / 1000f64)
+					}
 				}
 			}
 		}
@@ -262,21 +286,18 @@ impl Metrics {
 		let now = std::time::Instant::now();
 		// # Candidates in Each Stage
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
-			let count = self
-				.candidates
-				.get(&Stage::try_from(i)?)
-				.map(|c| c.iter().unique_by(|c| c.hash).count());
+			let count = self.candidates.get(&Stage::try_from(i)?).map(|c| c.iter().unique_by(|c| c.hash).count());
 			if let Some(c) = count {
 				gauge.set(c as f64);
 			}
 		}
+
 		log::debug!("Took {:?} to update candidates in each stage", now.elapsed());
 		let now = std::time::Instant::now();
 		// Total Number of Candidates
 		let count: usize = self.candidates.values().flatten().unique_by(|c| c.hash).count();
 		self.parachain_total_candidates.set(count as f64);
 		log::debug!("Took {:?} to update total number of candidates", now.elapsed());
-
 		Ok(())
 	}
 
@@ -339,7 +360,7 @@ impl Metrics {
 
 		hash.map(|h| {
 			Ok(Candidate {
-				hash: h,
+				hash: Some(h),
 				operation: span.operation_name.to_string(),
 				start_time: span.start_time,
 				duration: span.duration,
@@ -357,7 +378,7 @@ impl Metrics {
 
 #[derive(Debug, PartialEq)]
 struct Candidate {
-	hash: CandidateHash,
+	hash: Option<CandidateHash>,
 	operation: String,
 	start_time: usize,
 	duration: f64,
@@ -370,7 +391,7 @@ impl<'a> TryFrom<&'a Span<'a>> for Option<Candidate> {
 		let hash = extract_hash_from_span(span)?;
 		let stage = extract_stage_from_span(span)?.unwrap_or(Stage::NoStage);
 		Ok(hash.map(|h| Candidate {
-			hash: h,
+			hash: Some(h),
 			stage,
 			operation: span.operation_name.to_string(),
 			start_time: span.start_time,
