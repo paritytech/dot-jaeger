@@ -69,7 +69,7 @@ Options:
                     span has one of a candidate hash or stage but not the other.
                     Recursing children is slower than recursing parents.
   --include-unknown include candidates that have a stage but no candidate hash
-	                  in the prometheus data.
+	            in the prometheus data.
   --help            display usage information
 ```
 
