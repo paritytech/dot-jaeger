@@ -7,6 +7,7 @@ service for visualizing and collecting traces from Parachains.
 ## Guide
 - Make sure you can access your JaegerUI Endpoint collecting traces from Parachain Validators.
 
+- edit the docker-compose.yml prometheus `volumes` path with your path to prometheus.yml in the dot-jaeger repo
 - Start the external services (Prometheus + Grafana) with
 ```
 docker-compose up
