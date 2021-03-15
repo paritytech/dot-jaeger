@@ -96,7 +96,7 @@ pub struct Daemon {
 	/// Recursing children is slower than recursing parents.
 	pub recurse_children: bool,
 	#[argh(switch)]
-	/// include candidates that have a stage but a candidate-hash could not be found.
+	/// include candidates that have a stage but no candidate-hash in the prometheus data.
 	pub include_unknown: bool,
 }
 
