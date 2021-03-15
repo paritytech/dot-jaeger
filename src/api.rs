@@ -92,7 +92,7 @@ impl<'a> JaegerApi<'a> {
 	pub fn services(&self, app: &App) -> Result<Vec<String>, Error> {
 		let req = ureq::get(&endpoint(&self.url, Endpoint::Services));
 		let req = build_parameters(req, app);
-		let response: RpcResponse<String> = req.call()?.to_json()?;
+		let response: RpcResponse<String> = req.call()?.into_json()?;
 		Ok(response.consume())
 	}
 
