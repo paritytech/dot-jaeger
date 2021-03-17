@@ -79,7 +79,8 @@ impl<'a> PrometheusDaemon<'a> {
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
 
 		while running.load(Ordering::SeqCst) {
-			let _guard = exporter.wait_duration(Duration::from_millis(1000));
+			let _guard = exporter.wait_request();
+			// let _guard = exporter.wait_duration(Duration::from_millis(1000));
 			self.metrics.clear();
 			let now = std::time::Instant::now();
 			let json = self.api.traces(self.app)?;
