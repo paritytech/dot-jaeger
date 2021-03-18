@@ -60,12 +60,12 @@ impl Server {
 		encoder.encode(&metrics, &mut buffer)?;
 
 		let response = Response::from_data(buffer);
-		request.respond(response).with_context(|| format!("Failed to respond to Prometheus request for metrics"))?;
+		request.respond(response).with_context(|| "Failed to respond to Prometheus request for metrics".to_string())?;
 		Ok(())
 	}
 
 	fn handle_redirect(request: Request) -> Result<(), Error> {
-		let response = Response::from_string("the endpoint you probably want is `/metrics` ಠ_ಠ")
+		let response = Response::from_string("the endpoint you probably want is `/metrics` ಠ_ಠ\n")
 			.with_status_code(301)
 			.with_header(Header {
 				field: "Location".parse().expect("Can not parse location header. This should never fail"),

@@ -77,7 +77,6 @@ impl<'a> PrometheusDaemon<'a> {
 
 		// start the exporter and update metrics every five seconds
 		let exporter = Server::start(addr).expect("can not start exporter server");
-		log::info!("Hello");
 		let running = Arc::new(AtomicBool::new(true));
 		let r = running.clone();
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
@@ -291,11 +290,10 @@ impl Metrics {
 		log::debug!("Took {:?} to update histograms", now.elapsed());
 		let now = std::time::Instant::now();
 		// # Candidates in Each Stage
+		// If include_unknown is enabled, we don't count candidates without a candidate-hash (a `None` hash field), because we have nothing to say which candidates are unique
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
-			let count = self.candidates.get(&Stage::try_from(i)?).map(|c| c.iter().unique_by(|c| c.hash).count());
-			if let Some(c) = count {
-				gauge.set(c as f64);
-			}
+			let count = self.candidates.get(&Stage::try_from(i)?).map(|c| c.iter().filter_map(|c| c.hash).unique().count()).unwrap_or(0);
+			gauge.set(count as f64);
 		}
 
 		log::debug!("Took {:?} to update candidates in each stage", now.elapsed());
