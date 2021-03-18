@@ -112,11 +112,6 @@ impl<'a> PrometheusDaemon<'a> {
 	}
 }
 
-// TODO:
-// - Need to group candidates by their parent span ID
-// - Organize Candidates by the 'stage' tag (not yet implemented in substrate)
-// 		- once stage tag is implemented, we can track how many/which candidates reach the end of the cycle
-//
 /// Objects that tracks metrics per-candidate.
 /// Keeps spans without a candidate in a separate list, for potential reference.
 struct Metrics {
