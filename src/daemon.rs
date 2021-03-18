@@ -40,6 +40,8 @@ use std::{
 pub const MAX_RECURSION_DEPTH: usize = 10;
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
 pub const STAGE_IDENTIFIER: &str = "candidate-stage";
+pub const NAMESPACE: &str = "dotjaeger_";
+
 /// Default for Histogram Buckets.
 /// Buckets ranging from 250-20,000 milliseconds in steps of 250 milliseconds
 /// modifying this constant will modify all histogram buckets.
@@ -131,71 +133,80 @@ struct Metrics {
 impl Metrics {
 	pub fn new(daemon: &Daemon) -> Result<Self, Error> {
 		let parachain_total_candidates =
-			register_gauge!("parachain_total_candidates", "Total candidates registered on this node")
+			register_gauge!(NAMESPACE.to_string() + "parachain_total_candidates", "Total candidates registered on this node")
 				.expect("can not create gauge parachain_total_candidates metric");
 		let parachain_stage_gauges = [
-			register_gauge!("stage_0_candidates", "Total Candidates without an associated stage")
+			register_gauge!(NAMESPACE.to_string() + "stage_0_candidates", "Total Candidates without an associated stage")
 				.expect("can not create gauge stage_0_candidates metric"),
-			register_gauge!("stage_1_candidates", "Total Candidates on Stage 1")
+			register_gauge!(NAMESPACE.to_string() + "stage_1_candidates", "Total Candidates on Stage 1")
 				.expect("can not create gauge stage_1_candidates metric"),
-			register_gauge!("stage_2_candidates", "Total Candidates on Stage 2")
+			register_gauge!(NAMESPACE.to_string() + "stage_2_candidates", "Total Candidates on Stage 2")
 				.expect("can not create gauge stage_2_candidates metric"),
-			register_gauge!("stage_3_candidates", "Total Candidates on Stage 3")
+			register_gauge!(NAMESPACE.to_string() + "stage_3_candidates", "Total Candidates on Stage 3")
 				.expect("can not create gauge stage_3_candidates metric"),
-			register_gauge!("stage_4_candidates", "Total Candidates on Stage 4")
+			register_gauge!(NAMESPACE.to_string() + "stage_4_candidates", "Total Candidates on Stage 4")
 				.expect("can not create gauge stage_4_candidates metric"),
-			register_gauge!("stage_5_candidates", "Total Candidates on Stage 5")
+			register_gauge!(NAMESPACE.to_string() + "stage_5_candidates", "Total Candidates on Stage 5")
 				.expect("can not create gauge stage_5_candidates metric"),
-			register_gauge!("stage_6_candidates", "Total Candidates on Stage 6")
+			register_gauge!(NAMESPACE.to_string() + "stage_6_candidates", "Total Candidates on Stage 6")
 				.expect("can not create gauge stage_6_candidates metric"),
-			register_gauge!("stage_7_candidates", "Total Candidates on Stage 7")
+			register_gauge!(NAMESPACE.to_string() + "stage_7_candidates", "Total Candidates on Stage 7")
 				.expect("can not create gauge stage_7_candidates metric"),
-			register_gauge!("stage_8_candidates", "Total Candidates on Stage 8")
+			register_gauge!(NAMESPACE.to_string() + "stage_8_candidates", "Total Candidates on Stage 8")
 				.expect("can not create gauge stage_8_candidates metric"),
 		];
 
 		let parachain_stage_histograms = [
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_0_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_1_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_2_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_3_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_4_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_5_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_6_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_7_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
+				NAMESPACE.to_string() +
 				"stage_8_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
