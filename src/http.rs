@@ -56,9 +56,7 @@ impl Server {
 		let encoder = TextEncoder::new();
 		let metrics = prometheus::gather();
 		let mut buffer = vec![];
-
 		encoder.encode(&metrics, &mut buffer)?;
-
 		let response = Response::from_data(buffer);
 		request.respond(response).with_context(|| "Failed to respond to Prometheus request for metrics".to_string())?;
 		Ok(())
