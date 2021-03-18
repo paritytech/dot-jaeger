@@ -20,6 +20,7 @@ use env_logger::{Builder, Env};
 mod api;
 mod cli;
 mod daemon;
+mod http;
 mod primitives;
 
 fn main() -> Result<(), Error> {

@@ -84,7 +84,7 @@ pub struct Services {
 pub struct Daemon {
 	#[argh(option)]
 	/// frequency to update jaeger metrics in milliseconds.
-	pub frequency: Option<usize>,
+	pub frequency: Option<u64>,
 	#[argh(option, default = "default_port()")]
 	/// port to expose prometheus metrics at. Default 9186
 	pub port: usize,
@@ -156,7 +156,6 @@ fn services(app: &App, _: &Services) -> Result<(), Error> {
 /// Daemonize collecting Jaeger Metrics every few seconds, reporting everything to Prometheus.
 fn daemonize(app: &App, daemon: &Daemon) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
-	println!("Launching Jaeger Collector daemon!");
 	let mut daemon = PrometheusDaemon::new(daemon, &api, app)?;
 	daemon.start()?;
 	Ok(())

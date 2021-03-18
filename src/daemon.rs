@@ -19,11 +19,12 @@
 use crate::{
 	api::JaegerApi,
 	cli::{App, Daemon},
+	http::Server,
 	primitives::{Span, TraceObject},
 };
 use anyhow::{bail, Error};
 use itertools::Itertools;
-use prometheus_exporter::prometheus::{register_gauge, register_histogram, Gauge, Histogram};
+use prometheus::{register_gauge, register_histogram, Gauge, Histogram};
 use std::{
 	collections::HashMap,
 	convert::TryFrom,
@@ -59,12 +60,15 @@ pub struct PrometheusDaemon<'a> {
 	api: &'a JaegerApi<'a>,
 	app: &'a App,
 	metrics: Metrics,
+	/// frequency to update metrics in milliseconds
+	frequency: u64,
 }
 
 impl<'a> PrometheusDaemon<'a> {
 	pub fn new(daemon: &'a Daemon, api: &'a JaegerApi, app: &'a App) -> Result<Self, Error> {
 		let metrics = Metrics::new(daemon)?;
-		Ok(Self { port: daemon.port, api, app, metrics })
+		let frequency = daemon.frequency.unwrap_or(1000);
+		Ok(Self { port: daemon.port, api, app, metrics, frequency })
 	}
 
 	pub fn start(&mut self) -> Result<(), Error> {
@@ -72,14 +76,14 @@ impl<'a> PrometheusDaemon<'a> {
 		let addr: SocketAddr = addr_raw.parse().expect("can not parse listen addr");
 
 		// start the exporter and update metrics every five seconds
-		let exporter = prometheus_exporter::start(addr).expect("can not start exporter");
-
+		let exporter = Server::start(addr).expect("can not start exporter server");
+		log::info!("Hello");
 		let running = Arc::new(AtomicBool::new(true));
 		let r = running.clone();
 		ctrlc::set_handler(move || r.store(false, Ordering::SeqCst)).expect("Could not set the Ctrl-C handler.");
 
 		while running.load(Ordering::SeqCst) {
-			let _guard = exporter.wait_duration(Duration::from_millis(1000));
+			std::thread::sleep(Duration::from_millis(self.frequency));
 			self.metrics.clear();
 			let now = std::time::Instant::now();
 			let json = self.api.traces(self.app)?;
@@ -90,6 +94,8 @@ impl<'a> PrometheusDaemon<'a> {
 				break;
 			}
 		}
+		exporter.stop();
+
 		Ok(())
 	}
 
