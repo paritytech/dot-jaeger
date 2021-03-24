@@ -74,63 +74,63 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_0_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_0_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 0 (no stage)",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_1_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_1_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 1",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_2_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_2_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 2",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_3_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_3_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 3",
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_4_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_4_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 4",
           "refId": "E"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_5_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_5_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 5",
           "refId": "F"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_6_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_6_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 6",
           "refId": "G"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_7_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_7_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 7",
           "refId": "H"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(stage_8_duration_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dotjaeger_stage_8_duration_bucket[5m])) by (le))",
           "hide": false,
           "interval": "",
           "legendFormat": "Stage 8",
@@ -231,7 +231,7 @@
       "targets": [
         {
           "exemplar": false,
-          "expr": " stage_1_candidates",
+          "expr": " dotjaeger_stage_1_candidates",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -241,49 +241,49 @@
           "refId": "B"
         },
         {
-          "expr": "stage_2_candidates",
+          "expr": "dotjaeger_stage_2_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "Candidate Backing",
           "refId": "C"
         },
         {
-          "expr": "stage_3_candidates",
+          "expr": "dotjaeger_dotjaeger_stage_3_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "StatementDistribution",
           "refId": "D"
         },
         {
-          "expr": "stage_4_candidates",
+          "expr": "dotjaeger_stage_4_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "PoVDistribution",
           "refId": "E"
         },
         {
-          "expr": "stage_5_candidates",
+          "expr": "dotjaeger_stage_5_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "AvailabilityDistribution",
           "refId": "F"
         },
         {
-          "expr": "stage_6_candidates",
+          "expr": "dotjaeger_stage_6_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "AvailabilityRecovery",
           "refId": "G"
         },
         {
-          "expr": "stage_7_candidates",
+          "expr": "dotjaeger_stage_7_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "BitfieldDistribution",
           "refId": "H"
         },
         {
-          "expr": " stage_8_candidates",
+          "expr": "dotjaeger_stage_8_candidates",
           "hide": false,
           "interval": "",
           "legendFormat": "ApprovalChecking",
@@ -361,7 +361,7 @@
       "pluginVersion": "7.4.1",
       "targets": [
         {
-          "expr": "parachain_total_candidates",
+          "expr": "dotjaeger_parachain_total_candidates",
           "instant": false,
           "interval": "",
           "legendFormat": "Total Parachain Candidates",
@@ -1061,5 +1061,5 @@
   "timezone": "",
   "title": "Parachain Rococo Candidates",
   "uid": "jEVpFpyMk",
-  "version": 15
+  "version": 19
 }
