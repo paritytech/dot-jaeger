@@ -41,9 +41,13 @@ impl<'a> Graph<'a> {
 			let index = graph.add_node(span.clone());
 			index_lookup.insert(span.span_id, index);
 			span_lookup.insert(index, span.span_id);
-			if let Some(parent) = trace.get_parent(span.span_id) {
+		}
+
+		for id in span_lookup.values() {
+			if let Some(parent) = trace.get_parent(id) {
 				let parent_node = index_lookup.get(&parent.span_id).unwrap();
-				graph.add_edge(*parent_node, index, EDGE_WEIGHT)?;
+				let index = index_lookup.get(id).unwrap();
+				graph.add_edge(*parent_node, *index, EDGE_WEIGHT)?;
 			}
 		}
 
