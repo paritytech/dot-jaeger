@@ -19,7 +19,7 @@
 use anyhow::{anyhow, Context as _, Error};
 use ascii::AsciiString;
 use prometheus::{Encoder as _, TextEncoder};
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Instant};
 use tiny_http::{Header, Request, Response, Server as TinyServer};
 
 pub struct Server {
@@ -34,7 +34,8 @@ impl Server {
 		log::info!("exporting metrics to http://{}/metrics", addr);
 
 		let handle = jod_thread::spawn(move || {
-			if let Err(e) = Self::request_handler(&threaded_server) {
+			let mut instance = ServerInstance::new(&threaded_server);
+			if let Err(e) = instance.request_handler() {
 				log::error!("{}", e);
 			}
 		});
@@ -42,14 +43,40 @@ impl Server {
 		Ok(Self { handle, server })
 	}
 
-	fn request_handler(server: &TinyServer) -> Result<(), Error> {
-		for request in server.incoming_requests() {
+	pub fn stop(self) {
+		self.server.unblock();
+		self.handle.join();
+	}
+}
+
+struct ServerInstance<'a> {
+	time: Instant,
+	requests_served: u32,
+	server: &'a TinyServer,
+}
+
+impl<'a> ServerInstance<'a> {
+	fn new(server: &'a TinyServer) -> Self {
+		Self { time: Instant::now(), requests_served: 0, server }
+	}
+
+	fn request_handler(&mut self) -> Result<(), Error> {
+		for request in self.server.incoming_requests() {
 			match request.url() {
 				"/metrics" => Self::handle_metrics(request)?,
 				_ => Self::handle_redirect(request)?,
 			};
+			self.log_stats();
 		}
 		Ok(())
+	}
+
+	fn log_stats(&mut self) {
+		self.requests_served += 1;
+		let current_time = Instant::now();
+		if current_time.duration_since(self.time).as_secs() > 60 {
+			log::info!("[Server] Responded to {} requests", self.requests_served);
+		}
 	}
 
 	fn handle_metrics(request: Request) -> Result<(), Error> {
@@ -72,10 +99,5 @@ impl Server {
 			});
 		request.respond(response)?;
 		Ok(())
-	}
-
-	pub fn stop(self) {
-		self.server.unblock();
-		self.handle.join();
 	}
 }
