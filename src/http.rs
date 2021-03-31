@@ -78,7 +78,7 @@ impl<'a> ServerInstance<'a> {
 		if current_time.duration_since(self.time).as_secs() > 60 {
 			log::info!("[Server] Responded to {} requests", self.requests_served);
 			log::info!("[Server] Last Buffer sent was {} bytes long", self.last_buffer_length);
-            self.time = Instant::now();
+			self.time = Instant::now();
 		}
 	}
 
