@@ -20,6 +20,7 @@ use env_logger::{Builder, Env};
 mod api;
 mod cli;
 mod daemon;
+mod graph;
 mod http;
 mod primitives;
 
@@ -28,4 +29,136 @@ fn main() -> Result<(), Error> {
 
 	cli::app()?;
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	// test data for child-parent relationships
+	pub const TEST_DATA: &str = r#"
+	{
+	    "traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+        "spans": [
+			{
+ 				"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+				"spanID": "parent",
+				"flags": null,
+				"operationName": "testop",
+				"references": [],
+				"startTime": 1616995411000000,
+				"duration": 150,
+				"tags": [
+					{
+						"key": "otel.library.name",
+						"type": "string",
+						"value": "mick-jaeger"
+					},
+					{
+						"key": "otel.library.version",
+						"type": "string",
+						"value": "0.1.4"
+					},
+					{
+						"key": "candidate-stage",
+						"type": "string",
+						"value": "4"
+					},
+					{
+						"key": "internal.span.format",
+						"type": "string",
+						"value": "proto"
+					}
+				],
+				"logs": [],
+				"processID": "p1",
+				"warnings": null
+			},
+			{
+				"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+				"spanID": "child-0",
+				"flags": null,
+				"operationName": "testop",
+				"references": [
+					{
+						"refType": "CHILD_OF",
+						"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+						"spanID": "parent"
+					}
+				],
+				"startTime": 1616995411000000,
+				"duration": 150,
+				"tags": [
+					{
+						"key": "otel.library.name",
+						"type": "string",
+						"value": "mick-jaeger"
+					},
+					{
+						"key": "otel.library.version",
+						"type": "string",
+						"value": "0.1.4"
+					},
+					{
+						"key": "candidate-stage",
+						"type": "string",
+						"value": "4"
+					},
+					{
+						"key": "internal.span.format",
+						"type": "string",
+						"value": "proto"
+					}
+				],
+				"logs": [],
+				"processID": "p1",
+				"warnings": null
+			},
+			{
+				"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+				"spanID": "child-1",
+				"flags": null,
+				"operationName": "testop",
+				"references": [
+					{
+						"refType": "CHILD_OF",
+						"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+						"spanID": "child-0"
+					}
+				],
+				"startTime": 1616995411000000,
+				"duration": 150,
+				"tags": [
+					{
+						"key": "otel.library.name",
+						"type": "string",
+						"value": "mick-jaeger"
+					},
+					{
+						"key": "otel.library.version",
+						"type": "string",
+						"value": "0.1.4"
+					},
+					{
+						"key": "candidate-stage",
+						"type": "string",
+						"value": "4"
+					},
+					{
+						"key": "internal.span.format",
+						"type": "string",
+						"value": "proto"
+					}
+				],
+				"logs": [],
+				"processID": "p1",
+				"warnings": null
+			}
+		],
+		"processes": {
+      		"p1": {
+        		"serviceName": "polkadot-insi-testing",
+        		"tags": []
+      		}
+    	}
+    }
+    "#;
 }
