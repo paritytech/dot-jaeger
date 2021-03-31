@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
-use anyhow::Error;
 use serde::{de::Deserializer, Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -38,7 +37,7 @@ impl<T> RpcResponse<T> {
 pub struct TraceObject<'a> {
 	#[serde(rename = "traceID")]
 	trace_id: &'a str,
-	#[serde(borrow, deserialize_with = "deserialize_vec_as_hashmap")]
+	#[serde(deserialize_with = "deserialize_vec_as_hashmap")]
 	pub spans: HashMap<&'a str, Span<'a>>,
 	#[serde(borrow)]
 	processes: HashMap<&'a str, Process<'a>>,
@@ -57,13 +56,8 @@ where
 }
 
 impl<'a> TraceObject<'a> {
-	/// Finds a Span where `id` is listed as the child of another span.
-	fn find_child(&self, id: &'a str) -> Option<&'a Span> {
-		self.spans.values().find(|s| s.parent_span_id() == Some(id))
-	}
-
 	/// Gets a span that corresponds to the parent of the given id.
-	fn get_parent(&self, id: &'a str) -> Option<&'a Span> {
+	pub fn get_parent(&self, id: &'a str) -> Option<&'a Span> {
 		self.spans
 			.get(id)
 			.map(|s| {
@@ -72,37 +66,9 @@ impl<'a> TraceObject<'a> {
 			})
 			.flatten()
 	}
-
-	/// Recurse through a spans children, executing the predicate `fun` when a child is found.
-	/// Recursing children can be very slow, since every child span must be searched for in the span list,
-	/// since direct child-relationships are not included in the Jaeger Response.
-	pub fn recurse_children<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
-	where
-		F: FnMut(&'a Span<'a>) -> Result<bool, Error>,
-	{
-		if let Some(c) = self.find_child(id) {
-			if !fun(c)? {
-				self.recurse_children(c.span_id, fun)?;
-			}
-		}
-		Ok(())
-	}
-
-	/// Recurse through a spans parents, applying the predicate `fun`.
-	pub fn recurse_parents<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
-	where
-		F: FnMut(&'a Span<'a>) -> Result<bool, Error>,
-	{
-		if let Some(c) = self.get_parent(id) {
-			if !fun(c)? && c.parent_span_id().is_some() {
-				self.recurse_parents(c.span_id, fun)?;
-			}
-		}
-		Ok(())
-	}
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Span<'a> {
 	#[serde(rename = "traceID")]
 	pub trace_id: &'a str,
@@ -121,6 +87,7 @@ pub struct Span<'a> {
 	pub logs: Vec<serde_json::Value>, // FIXME: not sure what an actual 'log' looks like
 	#[serde(rename = "processID")]
 	pub process_id: &'a str,
+	#[serde(borrow)]
 	pub warnings: Option<Vec<&'a str>>,
 }
 
@@ -137,7 +104,7 @@ impl<'a> Span<'a> {
 	}
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Tag<'a> {
 	key: &'a str,
 	#[serde(rename = "type")]
@@ -152,7 +119,7 @@ impl<'a> Tag<'a> {
 	}
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum TagValue<'a> {
 	String(&'a str),
@@ -178,7 +145,7 @@ pub struct Process<'a> {
 	tags: Vec<Tag<'a>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Reference<'a> {
 	#[serde(rename = "refType")]
 	ref_type: &'a str,
@@ -186,4 +153,19 @@ pub struct Reference<'a> {
 	trace_id: &'a str,
 	#[serde(rename = "spanID")]
 	span_id: &'a str,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::tests::*;
+	use anyhow::Error;
+
+	#[test]
+	fn should_find_parents() -> Result<(), Error> {
+		let traces: TraceObject = serde_json::from_str(TEST_DATA)?;
+		assert_eq!(traces.get_parent("child-0").unwrap().span_id, "parent");
+		assert_eq!(traces.get_parent("child-1").unwrap().span_id, "child-0");
+		Ok(())
+	}
 }

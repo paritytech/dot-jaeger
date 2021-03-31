@@ -19,6 +19,7 @@
 use crate::{
 	api::JaegerApi,
 	cli::{App, Daemon},
+	graph::Graph,
 	http::Server,
 	primitives::{Span, TraceObject},
 };
@@ -37,7 +38,7 @@ use std::{
 	},
 	time::Duration,
 };
-pub const MAX_RECURSION_DEPTH: usize = 10;
+
 pub const HASH_IDENTIFIER: &str = "candidate-hash";
 pub const STAGE_IDENTIFIER: &str = "candidate-stage";
 pub const NAMESPACE: &str = "dotjaeger_";
@@ -127,12 +128,17 @@ struct Metrics {
 
 impl Metrics {
 	pub fn new(daemon: &Daemon) -> Result<Self, Error> {
-		let parachain_total_candidates =
-			register_gauge!(NAMESPACE.to_string() + "parachain_total_candidates", "Total candidates registered on this node")
-				.expect("can not create gauge parachain_total_candidates metric");
+		let parachain_total_candidates = register_gauge!(
+			NAMESPACE.to_string() + "parachain_total_candidates",
+			"Total candidates registered on this node"
+		)
+		.expect("can not create gauge parachain_total_candidates metric");
 		let parachain_stage_gauges = [
-			register_gauge!(NAMESPACE.to_string() + "stage_0_candidates", "Total Candidates without an associated stage")
-				.expect("can not create gauge stage_0_candidates metric"),
+			register_gauge!(
+				NAMESPACE.to_string() + "stage_0_candidates",
+				"Total Candidates without an associated stage"
+			)
+			.expect("can not create gauge stage_0_candidates metric"),
 			register_gauge!(NAMESPACE.to_string() + "stage_1_candidates", "Total Candidates on Stage 1")
 				.expect("can not create gauge stage_1_candidates metric"),
 			register_gauge!(NAMESPACE.to_string() + "stage_2_candidates", "Total Candidates on Stage 2")
@@ -153,56 +159,47 @@ impl Metrics {
 
 		let parachain_stage_histograms = [
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_0_duration",
+				NAMESPACE.to_string() + "stage_0_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_1_duration",
+				NAMESPACE.to_string() + "stage_1_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_2_duration",
+				NAMESPACE.to_string() + "stage_2_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_3_duration",
+				NAMESPACE.to_string() + "stage_3_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_4_duration",
+				NAMESPACE.to_string() + "stage_4_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_5_duration",
+				NAMESPACE.to_string() + "stage_5_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_6_duration",
+				NAMESPACE.to_string() + "stage_6_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_7_duration",
+				NAMESPACE.to_string() + "stage_7_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
 			register_histogram!(
-				NAMESPACE.to_string() +
-				"stage_8_duration",
+				NAMESPACE.to_string() + "stage_8_duration",
 				"Distributions of the time it takes for stage to complete",
 				HISTOGRAM_BUCKETS.to_vec()
 			)?,
@@ -245,12 +242,14 @@ impl Metrics {
 
 	/// Finds which candidates have a Stage and Hash attached
 	fn collect_candidates<'a>(&mut self, trace: &'a TraceObject<'a>) -> Result<(), Error> {
+		let graph = Graph::new(trace)?;
+
 		for span in trace.spans.values() {
 			if span.get_tag(STAGE_IDENTIFIER).is_none() && span.get_tag(HASH_IDENTIFIER).is_none() {
 				continue;
 			} else if span.get_tag(HASH_IDENTIFIER).is_none() {
 				log::trace!("Missing Hash, trying to resolve..");
-				if let Some(c) = self.try_resolve_missing(trace, span)? {
+				if let Some(c) = self.try_resolve_missing(&graph, span)? {
 					self.insert_candidate(c);
 				} else if self.include_unknown {
 					let stage = extract_stage_from_span(span)?.expect("Stage must exist because of if check");
@@ -264,7 +263,7 @@ impl Metrics {
 				}
 			} else if span.get_tag(STAGE_IDENTIFIER).is_none() {
 				log::trace!("Missing Stage, trying to resolve..");
-				if let Some(c) = self.try_resolve_missing(trace, span)? {
+				if let Some(c) = self.try_resolve_missing(&graph, span)? {
 					self.insert_candidate(c);
 				}
 			} else {
@@ -298,7 +297,11 @@ impl Metrics {
 		// # Candidates in Each Stage
 		// If include_unknown is enabled, we don't count candidates without a candidate-hash (a `None` hash field), because we have nothing to say which candidates are unique
 		for (i, gauge) in self.parachain_stage_gauges.iter().enumerate() {
-			let count = self.candidates.get(&Stage::try_from(i)?).map(|c| c.iter().filter_map(|c| c.hash).unique().count()).unwrap_or(0);
+			let count = self
+				.candidates
+				.get(&Stage::try_from(i)?)
+				.map(|c| c.iter().filter_map(|c| c.hash).unique().count())
+				.unwrap_or(0);
 			gauge.set(count as f64);
 		}
 
@@ -330,40 +333,39 @@ impl Metrics {
 	/// Try to resolve a missing candidate hash or a missing stage by inspecting the children and parent spans.
 	/// If a no candidate hash is not found, then `None` will be returned.
 	/// If no stage is found but the hash exists, then the stage will be set to `NoStage`.
-	fn try_resolve_missing<'a>(&self, trace: &TraceObject<'a>, span: &Span<'a>) -> Result<Option<Candidate>, Error> {
+	fn try_resolve_missing<'a>(&self, graph: &'a Graph<'a>, span: &Span<'a>) -> Result<Option<Candidate>, Error> {
 		// first check if the span has anything
 		let mut stage = extract_stage_from_span(span)?;
 		let mut hash = extract_hash_from_span(span)?;
-
-		let mut counter = 0;
 		if self.recurse_children {
-			trace.recurse_children(span.span_id, |c| {
-				counter += 1;
-				if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
-					hash = extract_hash_from_span(c)?;
+			for child in graph.search(span.span_id)? {
+				if child.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+					hash = extract_hash_from_span(child)?;
 				}
 
-				if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
-					stage = extract_stage_from_span(c)?;
+				if child.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+					stage = extract_stage_from_span(child)?;
 				}
 
-				Ok((stage.is_some() && hash.is_some()) || counter == MAX_RECURSION_DEPTH)
-			})?;
+				if stage.is_some() && hash.is_some() {
+					break;
+				}
+			}
 		}
 
-		counter = 0;
-		// only try the parents if that's something we want to do.
-		if self.recurse_parents && (stage.is_none() || hash.is_none()) {
-			trace.recurse_parents(span.span_id, |c| {
-				counter += 1;
-				if c.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
-					hash = extract_hash_from_span(c)?;
+		if self.recurse_parents {
+			for parent in graph.parents(span.span_id)? {
+				if parent.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+					hash = extract_hash_from_span(parent)?;
 				}
-				if c.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
-					stage = extract_stage_from_span(c)?;
+				if parent.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+					stage = extract_stage_from_span(parent)?;
 				}
-				Ok((stage.is_some() && hash.is_some()) || counter == MAX_RECURSION_DEPTH)
-			})?;
+
+				if stage.is_some() && hash.is_some() {
+					break;
+				}
+			}
 		}
 
 		let stage = stage.unwrap_or(Stage::NoStage);

@@ -19,7 +19,7 @@
 use anyhow::{anyhow, Context as _, Error};
 use ascii::AsciiString;
 use prometheus::{Encoder as _, TextEncoder};
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Instant};
 use tiny_http::{Header, Request, Response, Server as TinyServer};
 
 pub struct Server {
@@ -34,7 +34,8 @@ impl Server {
 		log::info!("exporting metrics to http://{}/metrics", addr);
 
 		let handle = jod_thread::spawn(move || {
-			if let Err(e) = Self::request_handler(&threaded_server) {
+			let mut instance = ServerInstance::new(&threaded_server);
+			if let Err(e) = instance.request_handler() {
 				log::error!("{}", e);
 			}
 		});
@@ -42,27 +43,57 @@ impl Server {
 		Ok(Self { handle, server })
 	}
 
-	fn request_handler(server: &TinyServer) -> Result<(), Error> {
-		for request in server.incoming_requests() {
+	pub fn stop(self) {
+		self.server.unblock();
+		self.handle.join();
+	}
+}
+
+struct ServerInstance<'a> {
+	server: &'a TinyServer,
+	time: Instant,
+	requests_served: u32,
+	last_buffer_length: usize,
+}
+
+impl<'a> ServerInstance<'a> {
+	fn new(server: &'a TinyServer) -> Self {
+		Self { server, time: Instant::now(), requests_served: 0, last_buffer_length: 0 }
+	}
+
+	fn request_handler(&mut self) -> Result<(), Error> {
+		for request in self.server.incoming_requests() {
 			match request.url() {
-				"/metrics" => Self::handle_metrics(request)?,
-				_ => Self::handle_redirect(request)?,
+				"/metrics" => self.handle_metrics(request)?,
+				_ => self.handle_redirect(request)?,
 			};
+			self.log_stats();
 		}
 		Ok(())
 	}
 
-	fn handle_metrics(request: Request) -> Result<(), Error> {
+	fn log_stats(&mut self) {
+		self.requests_served += 1;
+		let current_time = Instant::now();
+		if current_time.duration_since(self.time).as_secs() > 60 {
+			log::info!("[Server] Responded to {} requests", self.requests_served);
+			log::info!("[Server] Last Buffer sent was {} bytes long", self.last_buffer_length);
+			self.time = Instant::now();
+		}
+	}
+
+	fn handle_metrics(&mut self, request: Request) -> Result<(), Error> {
 		let encoder = TextEncoder::new();
 		let metrics = prometheus::gather();
 		let mut buffer = vec![];
 		encoder.encode(&metrics, &mut buffer)?;
+		self.last_buffer_length = buffer.len();
 		let response = Response::from_data(buffer);
 		request.respond(response).with_context(|| "Failed to respond to Prometheus request for metrics".to_string())?;
 		Ok(())
 	}
 
-	fn handle_redirect(request: Request) -> Result<(), Error> {
+	fn handle_redirect(&mut self, request: Request) -> Result<(), Error> {
 		let response = Response::from_string("the endpoint you probably want is `/metrics` ಠ_ಠ\n")
 			.with_status_code(301)
 			.with_header(Header {
@@ -72,10 +103,5 @@ impl Server {
 			});
 		request.respond(response)?;
 		Ok(())
-	}
-
-	pub fn stop(self) {
-		self.server.unblock();
-		self.handle.join();
 	}
 }
