@@ -15,8 +15,9 @@
 // along with dot-jaeger.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::primitives::{Span, TraceObject};
-use anyhow::Error;
+use anyhow::{Context, Error};
 use daggy::{Dag, EdgeIndex, NodeIndex, Walker};
+use petgraph::visit::{Control, DfsEvent};
 use std::collections::HashMap;
 
 const EDGE_WEIGHT: u32 = 1;
@@ -51,15 +52,44 @@ impl<'a> Graph<'a> {
 		Ok(Self { trace, graph, index_lookup })
 	}
 
+	/// Do a depth-first search for a span that meets the requirements of the predicate `fun`
+	pub fn search<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
+	where
+		F: FnMut(&'a Span<'a>) -> bool,
+	{
+		let span_node = self.index_lookup.get(id).context(format!("Failed to lookup index for span {}", id))?;
+		petgraph::visit::depth_first_search(&self.graph, Some(*span_node), |event| match event {
+			DfsEvent::TreeEdge(u, v) => {
+				if fun(&self.graph.raw_nodes()[u.index()].weight) || fun(&self.graph.raw_nodes()[v.index()].weight) {
+					return Control::Break(v);
+				} else {
+					Control::Continue
+				}
+			}
+			DfsEvent::Finish(_, t) => {
+				log::debug!("Took {:?} for a depth-first search of child spans", t);
+				Control::Continue
+			}
+			_ => Control::Continue,
+		});
+		Ok(())
+	}
+
+	// FIXME: This can be improved further but
+	// it is of questionable worth as it would probably require a more complicated algorithm to figure out which
+	// child path to go down; maybe one of the breadth/depth searches.
+	// In testing the Polkadot validators rarely had a child span, and if they did
+	// I never found an instance when it was more than one. However it could be worth doing to future-proof dot-jaeger
+	// if it receives lots of use and parachain code/jaeger changes in some way.
+	/// Iterate through the first child of each span
+	/// Most Jaeger spans have only one child.
 	pub fn children(&'a self, id: &'a str) -> Option<impl Iterator<Item = &'a Span<'a>>> {
 		let id = self.index_lookup.get(id)?;
-		let iter = self.graph.recursive_walk(*id, |rgraph, idx| {
-			let c = rgraph.children(idx).iter(&rgraph).count();
-			println!("Number of children: {}", c);
+		let iter = self.graph.recursive_walk(*id, move |rgraph, idx| {
 			rgraph.children(idx).iter(&rgraph).collect::<Vec<(EdgeIndex, NodeIndex)>>().get(0).map(|s| *s)
 		});
+
 		Some(iter.iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
-		// Some(self.graph.children(*id).iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
 	}
 
 	pub fn parents(&'a self, id: &'a str) -> Option<impl Iterator<Item = &'a Span<'a>>> {
