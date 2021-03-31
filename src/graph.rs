@@ -17,7 +17,7 @@
 use crate::primitives::{Span, TraceObject};
 use anyhow::{Context, Error};
 use daggy::{Dag, NodeIndex, Walker};
-use petgraph::visit::{Control, DfsEvent};
+use petgraph::visit::Dfs;
 use std::collections::HashMap;
 
 const EDGE_WEIGHT: u32 = 1;
@@ -32,6 +32,7 @@ pub struct Graph<'a> {
 }
 
 impl<'a> Graph<'a> {
+	/// Instantiate a new graph object for span traversal.
 	pub fn new(trace: &'a TraceObject<'a>) -> Result<Self, Error> {
 		let mut graph = Dag::new();
 		let mut index_lookup = HashMap::new();
@@ -52,30 +53,19 @@ impl<'a> Graph<'a> {
 		Ok(Self { trace, graph, index_lookup })
 	}
 
-	/// Do a depth-first search for a span that meets the requirements of the predicate `fun`
-	pub fn search<F>(&'a self, id: &'a str, mut fun: F) -> Result<(), Error>
-	where
-		F: FnMut(&'a Span<'a>) -> bool,
-	{
-		let span_node = self.index_lookup.get(id).context(format!("Failed to lookup index for span {}", id))?;
-		petgraph::visit::depth_first_search(&self.graph, Some(*span_node), |event| match event {
-			DfsEvent::TreeEdge(_, v) => {
-				if fun(&self.graph.raw_nodes()[v.index()].weight) {
-					return Control::Break(v);
-				} else {
-					Control::Continue
-				}
-			}
-			_ => Control::Continue,
-		});
-		Ok(())
+	/// Do a depth-first search for a span that meets the requirements of the predicate `fun`.
+	pub fn search(&'a self, id: &'a str) -> Result<impl Iterator<Item = &'a Span<'a>>, Error> {
+		let span_node = self.index_lookup.get(id).context(format!("Span {} not found in index", id))?;
+
+		let depth_first = Dfs::new(&self.graph, *span_node);
+		Ok(depth_first.iter(&self.graph).map(move |n| &self.graph.raw_nodes()[n.index()].weight))
 	}
 
-	// recursive walk through parents of a span
-	pub fn parents(&'a self, id: &'a str) -> Option<impl Iterator<Item = &'a Span<'a>>> {
-		let id = self.index_lookup.get(id)?;
+	/// Recursively walk through the parents of a span.
+	pub fn parents(&'a self, id: &'a str) -> Result<impl Iterator<Item = &'a Span<'a>>, Error> {
+		let id = self.index_lookup.get(id).context(format!("Parent span {} not found in index", id))?;
 		let iter = self.graph.recursive_walk(*id, |rgraph, n| rgraph.parents(n).iter(&rgraph).nth(0));
-		Some(iter.iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
+		Ok(iter.iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
 	}
 }
 
@@ -102,13 +92,12 @@ mod tests {
 		let traces: TraceObject = serde_json::from_str(TEST_DATA)?;
 		let graph = Graph::new(&traces)?;
 
-		let mut checked = Vec::new();
-		graph.search("parent", |span| {
-			checked.push(span.span_id);
-			false
-		})?;
+		let mut iterator = graph.search("parent")?;
+		assert_eq!(Some("parent"), iterator.next().map(|s| s.span_id));
+		assert_eq!(Some("child-0"), iterator.next().map(|s| s.span_id));
+		assert_eq!(Some("child-1"), iterator.next().map(|s| s.span_id));
+		assert_eq!(Some("child-2"), iterator.next().map(|s| s.span_id));
 
-		assert_eq!(vec!["child-0", "child-1", "child-2"], checked);
 		Ok(())
 	}
 }

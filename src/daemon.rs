@@ -335,56 +335,44 @@ impl Metrics {
 	/// If no stage is found but the hash exists, then the stage will be set to `NoStage`.
 	fn try_resolve_missing<'a>(&self, graph: &'a Graph<'a>, span: &Span<'a>) -> Result<Option<Candidate>, Error> {
 		// first check if the span has anything
-		let mut span_stage = None;
-		let mut span_hash = None;
-		if span.get_tag(HASH_IDENTIFIER).is_some() {
-			span_hash = Some(span);
-		}
-		if span.get_tag(STAGE_IDENTIFIER).is_some() {
-			span_stage = Some(span)
-		}
-
-		//		let mut stage = extract_stage_from_span(span)?;
-		//		let mut hash = extract_hash_from_span(span)?;
+		let mut stage = extract_stage_from_span(span)?;
+		let mut hash = extract_hash_from_span(span)?;
 		if self.recurse_children {
-			graph.search(span.span_id, |child| {
-				if child.get_tag(HASH_IDENTIFIER).is_some() && span_hash.is_none() {
-					// hash = extract_hash_from_span(child)?;
-					span_hash = Some(child);
+			for child in graph.search(span.span_id)? {
+				if child.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+					hash = extract_hash_from_span(child)?;
 				}
 
-				if child.get_tag(STAGE_IDENTIFIER).is_some() && span_stage.is_none() {
-					// stage = extract_stage_from_span(child)?;
-					span_stage = Some(child);
+				if child.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+					stage = extract_stage_from_span(child)?;
 				}
 
-				span_stage.is_some() && span_hash.is_some()
-			})?;
-		}
-
-		if self.recurse_parents {
-			for parent in graph.parents(span.span_id).unwrap() {
-				if parent.get_tag(HASH_IDENTIFIER).is_some() && span_hash.is_none() {
-					//hash = extract_hash_from_span(parent)?;
-					span_hash = Some(parent);
-				}
-				if parent.get_tag(STAGE_IDENTIFIER).is_some() && span_stage.is_none() {
-					// stage = extract_stage_from_span(parent)?;
-					span_stage = Some(parent);
-				}
-
-				if span_stage.is_some() && span_hash.is_some() {
+				if stage.is_some() && hash.is_some() {
 					break;
 				}
 			}
 		}
 
-		let stage = span_stage.map(|s| extract_stage_from_span(s)).transpose()?.flatten().unwrap_or(Stage::NoStage);
-		let hash = span_hash.map(|h| extract_hash_from_span(h)).transpose()?;
+		if self.recurse_parents {
+			for parent in graph.parents(span.span_id)? {
+				if parent.get_tag(HASH_IDENTIFIER).is_some() && hash.is_none() {
+					hash = extract_hash_from_span(parent)?;
+				}
+				if parent.get_tag(STAGE_IDENTIFIER).is_some() && stage.is_none() {
+					stage = extract_stage_from_span(parent)?;
+				}
+
+				if stage.is_some() && hash.is_some() {
+					break;
+				}
+			}
+		}
+
+		let stage = stage.unwrap_or(Stage::NoStage);
 
 		hash.map(|h| {
 			Ok(Candidate {
-				hash: h,
+				hash: Some(h),
 				operation: span.operation_name.to_string(),
 				start_time: span.start_time,
 				duration: span.duration,
