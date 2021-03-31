@@ -23,3 +23,6 @@ itertools = "0.10.0"
 jod-thread = "0.1.2"
 ascii = "1.0.0"
 daggy = "0.7"
+
+[dev-dependencies]
+petgraph = "0.5"

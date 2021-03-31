@@ -151,6 +151,46 @@ mod tests {
 				"logs": [],
 				"processID": "p1",
 				"warnings": null
+			},
+			{
+				"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+				"spanID": "child-2",
+				"flags": null,
+				"operationName": "testop",
+				"references": [
+					{
+						"refType": "CHILD_OF",
+						"traceID": "6ga7nenJ21rhDy6Fwzjwz7KZQ5Jrii9",
+						"spanID": "child-1"
+					}
+				],
+				"startTime": 1616995411000000,
+				"duration": 150,
+				"tags": [
+					{
+						"key": "otel.library.name",
+						"type": "string",
+						"value": "mick-jaeger"
+					},
+					{
+						"key": "otel.library.version",
+						"type": "string",
+						"value": "0.1.4"
+					},
+					{
+						"key": "candidate-stage",
+						"type": "string",
+						"value": "4"
+					},
+					{
+						"key": "internal.span.format",
+						"type": "string",
+						"value": "proto"
+					}
+				],
+				"logs": [],
+				"processID": "p1",
+				"warnings": null
 			}
 		],
 		"processes": {

@@ -16,7 +16,7 @@
 
 use crate::primitives::{Span, TraceObject};
 use anyhow::Error;
-use daggy::{Dag, NodeIndex, Walker};
+use daggy::{Dag, EdgeIndex, NodeIndex, Walker};
 use std::collections::HashMap;
 
 const EDGE_WEIGHT: u32 = 1;
@@ -28,22 +28,19 @@ pub struct Graph<'a> {
 	graph: DirectedGraph<'a>,
 	/// Dictionary of the nodes present in the graph
 	index_lookup: HashMap<&'a str, NodeIndex<u32>>,
-	span_lookup: HashMap<NodeIndex, &'a str>,
 }
 
 impl<'a> Graph<'a> {
 	pub fn new(trace: &'a TraceObject<'a>) -> Result<Self, Error> {
 		let mut graph = Dag::new();
 		let mut index_lookup = HashMap::new();
-		let mut span_lookup = HashMap::new();
 
 		for span in trace.spans.values() {
 			let index = graph.add_node(span.clone());
 			index_lookup.insert(span.span_id, index);
-			span_lookup.insert(index, span.span_id);
 		}
 
-		for id in span_lookup.values() {
+		for id in trace.spans.values().map(|s| s.span_id) {
 			if let Some(parent) = trace.get_parent(id) {
 				let parent_node = index_lookup.get(&parent.span_id).unwrap();
 				let index = index_lookup.get(id).unwrap();
@@ -51,21 +48,64 @@ impl<'a> Graph<'a> {
 			}
 		}
 
-		Ok(Self { trace, graph, index_lookup, span_lookup })
+		Ok(Self { trace, graph, index_lookup })
 	}
 
 	pub fn children(&'a self, id: &'a str) -> Option<impl Iterator<Item = &'a Span<'a>>> {
 		let id = self.index_lookup.get(id)?;
-		Some(self.graph.children(*id).iter(&self.graph).filter_map(move |(_, n)| self.get_span_by_index(&n)))
+		let iter = self.graph.recursive_walk(*id, |rgraph, idx| {
+			let c = rgraph.children(idx).iter(&rgraph).count();
+			println!("Number of children: {}", c);
+			rgraph.children(idx).iter(&rgraph).collect::<Vec<(EdgeIndex, NodeIndex)>>().get(0).map(|s| *s)
+		});
+		Some(iter.iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
+		// Some(self.graph.children(*id).iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
 	}
 
 	pub fn parents(&'a self, id: &'a str) -> Option<impl Iterator<Item = &'a Span<'a>>> {
 		let id = self.index_lookup.get(id)?;
-		Some(self.graph.parents(*id).iter(&self.graph).filter_map(move |(_, n)| self.get_span_by_index(&n)))
+		Some(self.graph.parents(*id).iter(&self.graph).map(move |(_, n)| &self.graph.raw_nodes()[n.index()].weight))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::tests::*;
+	use petgraph::dot::{Config, Dot};
+
+	#[test]
+	fn output_graphviz() {
+		let traces: TraceObject = serde_json::from_str(TEST_DATA).unwrap();
+		let graph = Graph::new(&traces).unwrap();
+		let inner = graph.graph.into_graph();
+		let viz = Dot::with_config(&inner, &[Config::EdgeNoLabel]);
+		println!("{:?}", viz);
 	}
 
-	fn get_span_by_index(&'a self, index: &NodeIndex<u32>) -> Option<&'a Span<'a>> {
-		let span_id = self.span_lookup.get(index)?;
-		self.trace.spans.get(span_id)
+	#[test]
+	fn should_iter_parents() -> Result<(), Error> {
+		let traces: TraceObject = serde_json::from_str(TEST_DATA)?;
+		let graph = Graph::new(&traces)?;
+
+		let mut iterator = graph.parents("child-1").unwrap();
+		assert_eq!(Some("child-0"), iterator.next().map(|s| s.span_id));
+		//	assert_eq!(Some("parent"), iterator.next().map(|s| s.span_id));
+		Ok(())
+	}
+
+	#[test]
+	fn should_iter_children() -> Result<(), Error> {
+		let traces: TraceObject = serde_json::from_str(TEST_DATA)?;
+		let graph = Graph::new(&traces)?;
+
+		// let mut iterator = graph.children("parent").unwrap();
+		// assert_eq!(Some("child-0"), iterator.next().map(|s| s.span_id));
+		// assert_eq!(Some("child-1"), iterator.next().map(|s| s.span_id));
+
+		for thing in graph.children("parent").unwrap() {
+			println!("{}", thing.span_id);
+		}
+		Ok(())
 	}
 }

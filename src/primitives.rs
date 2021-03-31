@@ -160,15 +160,7 @@ pub struct Reference<'a> {
 mod tests {
 	use super::*;
 	use crate::tests::*;
-
-	#[test]
-	fn should_find_child() -> Result<(), Error> {
-		let traces: TraceObject = serde_json::from_str(TEST_DATA)?;
-
-		assert_eq!(traces.find_child("parent").unwrap().span_id, "child-0");
-		assert_eq!(traces.find_child("child-0").unwrap().span_id, "child-1");
-		Ok(())
-	}
+	use anyhow::Error;
 
 	#[test]
 	fn should_find_parents() -> Result<(), Error> {
