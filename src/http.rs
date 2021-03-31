@@ -50,21 +50,22 @@ impl Server {
 }
 
 struct ServerInstance<'a> {
+	server: &'a TinyServer,
 	time: Instant,
 	requests_served: u32,
-	server: &'a TinyServer,
+	last_buffer_length: usize,
 }
 
 impl<'a> ServerInstance<'a> {
 	fn new(server: &'a TinyServer) -> Self {
-		Self { time: Instant::now(), requests_served: 0, server }
+		Self { server, time: Instant::now(), requests_served: 0, last_buffer_length: 0 }
 	}
 
 	fn request_handler(&mut self) -> Result<(), Error> {
 		for request in self.server.incoming_requests() {
 			match request.url() {
-				"/metrics" => Self::handle_metrics(request)?,
-				_ => Self::handle_redirect(request)?,
+				"/metrics" => self.handle_metrics(request)?,
+				_ => self.handle_redirect(request)?,
 			};
 			self.log_stats();
 		}
@@ -76,20 +77,23 @@ impl<'a> ServerInstance<'a> {
 		let current_time = Instant::now();
 		if current_time.duration_since(self.time).as_secs() > 60 {
 			log::info!("[Server] Responded to {} requests", self.requests_served);
+			log::info!("[Server] Last Buffer sent was {} bytes long", self.last_buffer_length);
 		}
+		self.time = Instant::now();
 	}
 
-	fn handle_metrics(request: Request) -> Result<(), Error> {
+	fn handle_metrics(&mut self, request: Request) -> Result<(), Error> {
 		let encoder = TextEncoder::new();
 		let metrics = prometheus::gather();
 		let mut buffer = vec![];
 		encoder.encode(&metrics, &mut buffer)?;
+		self.last_buffer_length = buffer.len();
 		let response = Response::from_data(buffer);
 		request.respond(response).with_context(|| "Failed to respond to Prometheus request for metrics".to_string())?;
 		Ok(())
 	}
 
-	fn handle_redirect(request: Request) -> Result<(), Error> {
+	fn handle_redirect(&mut self, request: Request) -> Result<(), Error> {
 		let response = Response::from_string("the endpoint you probably want is `/metrics` ಠ_ಠ\n")
 			.with_status_code(301)
 			.with_header(Header {
