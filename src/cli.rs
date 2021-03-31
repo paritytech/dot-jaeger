@@ -120,9 +120,6 @@ pub fn app() -> Result<(), Error> {
 fn traces(app: &App, traces: &AllTraces) -> Result<(), Error> {
 	let api = JaegerApi::new(&app.url);
 	let data = api.traces(app)?;
-	println!("{}", data);
-	// let test: serde_json::value::Value = serde_json::from_str(&data)?;
-	//println!("{}", serde_json::to_string_pretty(&test)?);
 	let json = api.to_json::<TraceObject>(&data)?;
 	if traces.pretty_print {
 		println!("{}", serde_json::to_string_pretty(&json)?);

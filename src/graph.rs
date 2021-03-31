@@ -40,13 +40,17 @@ impl<'a> Graph<'a> {
 		for span in trace.spans.values() {
 			let index = graph.add_node(span.clone());
 			index_lookup.insert(span.span_id, index);
-		}
-
-		for id in trace.spans.values().map(|s| s.span_id) {
-			if let Some(parent) = trace.get_parent(id) {
-				let parent_node = index_lookup.get(&parent.span_id).unwrap();
-				let index = index_lookup.get(id).unwrap();
-				graph.add_edge(*parent_node, *index, EDGE_WEIGHT)?;
+			if let Some(parent) = trace.get_parent(span.span_id) {
+				let parent_node = if let Some(parent_node) = index_lookup.get(&parent.span_id) {
+					*parent_node
+				} else {
+					let parent_node = trace.spans.get(&parent.span_id).unwrap();
+					let parent_node = graph.add_node(parent_node.clone());
+					index_lookup.insert(&parent.span_id, parent_node);
+					parent_node
+				};
+				let index = index_lookup.get(span.span_id).unwrap();
+				graph.add_edge(parent_node, *index, EDGE_WEIGHT)?;
 			}
 		}
 

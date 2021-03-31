@@ -89,7 +89,6 @@ pub struct Span<'a> {
 	pub process_id: &'a str,
 	#[serde(borrow)]
 	pub warnings: Option<Vec<&'a str>>,
-	// pub index: NodeIndex
 }
 
 impl<'a> Span<'a> {
